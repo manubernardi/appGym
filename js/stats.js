@@ -1,8 +1,8 @@
-// Cálculos de evolución: volumen/series por grupo, historial por ejercicio y récords.
+// Cálculos de evolución: series por grupo, resumen del mes, historial por ejercicio y récords.
 
 import { GROUPS, WEIGHT_TYPES } from './data.js';
 import { state } from './store.js';
-import { parseDate, toISODate, monthName, fmtNum } from './ui.js';
+import { parseDate, toISODate, fmtNum } from './ui.js';
 
 // Una serie cuenta si tiene repeticiones.
 export function validSets(entry) {
@@ -15,84 +15,152 @@ export function e1rm(w, r) {
   return r === 1 ? w : w * (1 + r / 30);
 }
 
-function setVolume(ex, s) {
-  const type = WEIGHT_TYPES[ex.type] || WEIGHT_TYPES.maquina;
-  if (type.bodyweight) return 0;
-  return (s.w || 0) * s.r * type.factor;
-}
+// --- Fechas -------------------------------------------------------------
 
-// --- Períodos -----------------------------------------------------------
-
-function weekStart(iso) {
+export function weekStart(iso) {
   const d = parseDate(iso);
   const dow = (d.getDay() + 6) % 7; // lunes = 0
   d.setDate(d.getDate() - dow);
   return toISODate(d);
 }
 
-export function periodKey(kind, iso) {
-  return kind === 'week' ? weekStart(iso) : iso.slice(0, 7);
+export function addDays(iso, n) {
+  const d = parseDate(iso);
+  d.setDate(d.getDate() + n);
+  return toISODate(d);
 }
 
-// Últimos n períodos (del más viejo al actual).
-export function lastPeriods(kind, n) {
-  const out = [];
-  const d = new Date();
-  for (let i = n - 1; i >= 0; i--) {
-    if (kind === 'week') {
-      const x = new Date(d);
-      x.setDate(x.getDate() - 7 * i);
-      const key = weekStart(toISODate(x));
-      const s = parseDate(key);
-      out.push({ key, label: `${s.getDate()}/${s.getMonth() + 1}` });
-    } else {
-      const x = new Date(d.getFullYear(), d.getMonth() - i, 1);
-      const key = toISODate(x).slice(0, 7);
-      out.push({ key, label: monthName(x.getMonth()) + (x.getMonth() === 0 ? ` ${String(x.getFullYear()).slice(2)}` : '') });
-    }
-  }
-  return out;
+function sessionsBetween(from, to) {
+  return state.sessions.filter((s) => s.date >= from && s.date <= to);
 }
 
-// --- Por grupo muscular -------------------------------------------------
+// --- Series por grupo ---------------------------------------------------
 
-function emptyGroupRow() {
-  return { volP: 0, volS: 0, setsP: 0, setsS: 0, daysP: new Set(), daysAny: new Set() };
-}
+export const TARGET_MIN = 10;
+export const TARGET_MAX = 20;
 
-// Devuelve { [periodKey]: { [grupo]: {volP, volS, setsP, setsS, daysP, daysAny} } }
-export function groupStatsByPeriod(kind) {
-  const out = {};
-  for (const session of state.sessions) {
-    const pk = periodKey(kind, session.date);
-    const period = out[pk] || (out[pk] = Object.fromEntries(GROUPS.map((g) => [g, emptyGroupRow()])));
+// Series por grupo entre dos fechas (inclusive). El grupo principal suma 1 por serie
+// y cada secundario 0,5. items: ejercicios que aportaron a cada grupo.
+export function groupSets(from, to) {
+  const out = Object.fromEntries(GROUPS.map((g) => [g, { total: 0, items: new Map() }]));
+  const add = (g, ex, n, factor) => {
+    const row = out[g];
+    if (!row) return;
+    row.total += n * factor;
+    const it = row.items.get(ex.id) || { name: ex.name, sets: 0, secondary: factor < 1 };
+    it.sets += n * factor;
+    row.items.set(ex.id, it);
+  };
+  for (const session of sessionsBetween(from, to)) {
     for (const entry of session.entries || []) {
       const ex = state.exercises.get(entry.exerciseId);
-      if (!ex) continue;
-      const sets = validSets(entry);
-      if (!sets.length) continue;
-      const vol = sets.reduce((acc, s) => acc + setVolume(ex, s), 0);
-      const p = period[ex.primary];
-      if (p) {
-        p.volP += vol;
-        p.setsP += sets.length;
-        p.daysP.add(session.date);
-        p.daysAny.add(session.date);
-      }
-      for (const g of ex.secondary || []) {
-        const row = period[g];
-        if (!row || g === ex.primary) continue;
-        row.volS += vol;
-        row.setsS += sets.length;
-        row.daysAny.add(session.date);
-      }
+      const n = validSets(entry).length;
+      if (!ex || !n) continue;
+      add(ex.primary, ex, n, 1);
+      for (const g of ex.secondary || []) if (g !== ex.primary) add(g, ex, n, 0.5);
     }
   }
   return out;
 }
 
-export function emptyPeriod() {
-  return Object.fromEntries(GROUPS.map((g) => [g, emptyGroupRow()]));
+// --- Resumen del mes ----------------------------------------------------
+
+// Puntaje de una serie para comparar: fuerza estimada, o reps si es sin peso.
+function setScore(ex, s) {
+  if (WEIGHT_TYPES[ex.type]?.bodyweight) return s.r;
+  return e1rm(s.w, s.r);
+}
+
+function bestSet(ex, sets) {
+  let best = null;
+  for (const s of sets) {
+    const score = setScore(ex, s);
+    if (score > 0 && (!best || score > best.score)) best = { ...s, score };
+  }
+  return best;
+}
+
+// Récord: más peso que nunca, o el mismo peso con más reps (sin peso: más reps).
+function beats(ex, a, b) {
+  if (WEIGHT_TYPES[ex.type]?.bodyweight) return a.r > b.r;
+  const aw = a.w || 0;
+  const bw = b.w || 0;
+  return aw > bw || (aw === bw && a.r > b.r);
+}
+
+function topSet(ex, sets) {
+  let top = null;
+  for (const s of sets) if (!top || beats(ex, s, top)) top = s;
+  return top;
+}
+
+// monthKey: 'YYYY-MM'
+export function monthSummary(monthKey) {
+  const from = `${monthKey}-01`;
+  const d = parseDate(from);
+  const end = toISODate(new Date(d.getFullYear(), d.getMonth() + 1, 0));
+  const to = end < toISODate(new Date()) ? end : toISODate(new Date());
+  const days = Math.max(1, Math.round((parseDate(to) - d) / 86400000) + 1);
+  const weeks = Math.max(1, days / 7); // a principio de mes no se infla el promedio
+  const sessions = sessionsBetween(from, to);
+
+  // Sesiones de cada ejercicio en el mes (en orden de fecha) y lo previo al mes.
+  const perEx = new Map();
+  for (const s of [...sessions].reverse()) {
+    for (const entry of s.entries || []) {
+      const ex = state.exercises.get(entry.exerciseId);
+      const sets = validSets(entry);
+      if (!ex || !sets.length) continue;
+      if (!perEx.has(ex.id)) perEx.set(ex.id, { ex, sessions: [] });
+      perEx.get(ex.id).sessions.push({ date: s.date, sets });
+    }
+  }
+  const before = new Map();
+  for (const s of state.sessions) {
+    if (s.date >= from) continue;
+    for (const entry of s.entries || []) {
+      const ex = state.exercises.get(entry.exerciseId);
+      if (!ex || !perEx.has(ex.id)) continue;
+      const t = topSet(ex, validSets(entry));
+      if (t && (!before.has(ex.id) || beats(ex, t, before.get(ex.id)))) before.set(ex.id, t);
+    }
+  }
+
+  const newRecords = [];
+  const improved = [];
+  const same = [];
+  const worse = [];
+  const once = [];
+  for (const { ex, sessions: list } of perEx.values()) {
+    const prev = before.get(ex.id);
+    let top = null;
+    let topDate = null;
+    for (const x of list) {
+      const t = topSet(ex, x.sets);
+      if (t && (!top || beats(ex, t, top))) { top = t; topDate = x.date; }
+    }
+    if (prev && top && beats(ex, top, prev)) newRecords.push({ ex, set: top, prev, date: topDate });
+
+    if (list.length < 2) { once.push({ ex }); continue; }
+    const first = bestSet(ex, list[0].sets);
+    const last = bestSet(ex, list[list.length - 1].sets);
+    if (!first || !last) { once.push({ ex }); continue; }
+    const pct = ((last.score - first.score) / first.score) * 100;
+    const row = { ex, first, last, pct, firstDate: list[0].date, lastDate: list[list.length - 1].date };
+    (pct > 1 ? improved : pct < -1 ? worse : same).push(row);
+  }
+  improved.sort((a, b) => b.pct - a.pct);
+  worse.sort((a, b) => a.pct - b.pct);
+
+  const groups = groupSets(from, to);
+  for (const g of GROUPS) groups[g].perWeek = groups[g].total / weeks;
+
+  return {
+    from, to, weeks, inProgress: to !== end,
+    sessionCount: sessions.length,
+    trainingDays: new Set(sessions.map((s) => s.date)).size,
+    newRecords, improved, same, worse, once, groups,
+  };
 }
 
 // --- Por ejercicio ------------------------------------------------------

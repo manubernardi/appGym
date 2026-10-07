@@ -38,16 +38,18 @@ Desde esta carpeta: `npx serve .` (o cualquier servidor estático) y abrí `http
 - **Entrenar**: elegís la rutina y anotás kg y reps de cada serie. Arriba de cada ejercicio ves lo que hiciste la última vez,
   y los campos vacíos muestran esos valores en gris como referencia. Se guarda solo mientras escribís.
 - **Progreso**:
-  - *Grupos*: series y volumen por grupo muscular, por semana o mes, separando cuando el grupo fue **principal** o **secundario**.
+  - *Mes*: entrenamientos y frecuencia, récords nuevos, qué ejercicios mejoraron / se mantuvieron / bajaron
+    (mejor serie de la primera vs la última vez del mes) y series promedio por semana de cada grupo.
+  - *Semana*: series de cada grupo comparadas con el objetivo de 10 a 20 (bajo / bien / alto). Tocando un grupo ves qué ejercicios sumaron.
   - *Ejercicios*: gráfico de peso máximo y fuerza estimada (1RM) de cada ejercicio, más su historial.
   - *Récords*: mejor marca de cada ejercicio.
-  - *Peso corporal*.
+  - *Peso* corporal.
 - **Más**: historial completo (se puede editar o borrar cualquier entrenamiento), tus ejercicios (nombre, tipo de peso,
   grupos musculares) y copia de seguridad en un archivo.
 
-### Cómo se calcula el volumen
-`kg × reps` de cada serie. Para ejercicios de **mancuerna** se anota el peso de una y el volumen se multiplica × 2.
-**Barra**: peso total. **Máquina/polea**: el número de la máquina. Los ejercicios **sin peso** cuentan series pero no volumen.
+### Cómo se cuentan las series por grupo
+Cada serie suma 1 a su grupo principal y ½ a cada grupo secundario. Ej.: 4 series de press banca = 4 de Pecho, 2 de Tríceps y 2 de Hombros.
+En ejercicios de mancuerna se anota el peso de una; con barra, el peso total; en máquina o polea, el número de la máquina.
 
 ## Actualizar la app
 Después de cambiar archivos, subí el número de `CACHE` en [`sw.js`](sw.js) (`gimnasio-v2`, …).

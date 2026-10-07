@@ -1,19 +1,19 @@
-// Pestaña "Progreso": por grupo muscular, por ejercicio, récords y peso corporal.
+// Pestaña "Progreso": resumen del mes, balance semanal, ejercicios, récords y peso corporal.
 
 import { GROUPS, WEIGHT_TYPES } from '../data.js';
 import { state } from '../store.js';
 import { save, remove } from '../db.js';
-import { esc, fmtDate, fmtKg, fmtNum, parseNum, today, toast, confirmDialog } from '../ui.js';
+import { esc, fmtDate, fmtNum, parseNum, parseDate, today, toast, confirmDialog, monthName } from '../ui.js';
 import {
-  groupStatsByPeriod, lastPeriods, emptyPeriod, exerciseHistory,
-  loggedExerciseIds, records, fmtSets,
+  exerciseHistory, loggedExerciseIds, records, fmtSets,
+  weekStart, addDays, groupSets, monthSummary, TARGET_MIN, TARGET_MAX,
 } from '../stats.js';
 
 // Lo elegido en pantalla se recuerda mientras la app está abierta.
-const ui = { tab: 'grupos', kind: 'week', group: 'Resumen', offset: 0, exerciseId: null };
+const ui = { tab: 'mes', monthOffset: 0, weekOffset: 0, exerciseId: null };
 let charts = [];
 
-const TABS = [['grupos', 'Grupos'], ['ejercicio', 'Ejercicios'], ['records', 'Récords'], ['peso', 'Peso']];
+const TABS = [['mes', 'Mes'], ['semana', 'Semana'], ['ejercicio', 'Ejercicios'], ['records', 'Récords'], ['peso', 'Peso']];
 
 export function leave() {
   destroyCharts();
@@ -40,7 +40,7 @@ export function render(container) {
     body.innerHTML = '<div class="card empty"><p>Todavía no hay entrenamientos registrados.</p></div>';
     return;
   }
-  ({ grupos: renderGroups, ejercicio: renderExercise, records: renderRecords, peso: renderBodyweight })[ui.tab](body, container);
+  ({ mes: renderMonth, semana: renderWeek, ejercicio: renderExercise, records: renderRecords, peso: renderBodyweight })[ui.tab](body, container);
 }
 
 // --- Colores y gráficos -------------------------------------------------
@@ -88,40 +88,6 @@ function makeChart(canvas, config) {
   charts.push(chart);
 }
 
-function stackedBar(canvas, labels, pData, sData, fmt, horizontal = false) {
-  const t = chartTheme();
-  const valueAxis = {
-    stacked: true, beginAtZero: true, grid: { color: t.grid },
-    ticks: { callback: (v) => fmt(v), maxTicksLimit: 5 }, border: { display: false },
-  };
-  const catAxis = {
-    stacked: true, grid: { display: false }, border: { display: false },
-    ticks: horizontal ? { autoSkip: false } : { maxRotation: 0, autoSkipPadding: 6 },
-  };
-  makeChart(canvas, {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [
-        { label: 'Principal', data: pData, backgroundColor: t.p, borderRadius: 4, borderSkipped: false, borderColor: t.surface, borderWidth: 1 },
-        { label: 'Secundario', data: sData, backgroundColor: t.s, borderRadius: 4, borderSkipped: false, borderColor: t.surface, borderWidth: 1 },
-      ],
-    },
-    options: {
-      indexAxis: horizontal ? 'y' : 'x',
-      scales: horizontal ? { x: valueAxis, y: catAxis } : { x: catAxis, y: valueAxis },
-      plugins: {
-        tooltip: {
-          callbacks: {
-            label: (ctx) => ` ${ctx.dataset.label}: ${fmt(ctx.raw)}`,
-            footer: (items) => `Total: ${fmt(items.reduce((a, i) => a + i.raw, 0))}`,
-          },
-        },
-      },
-    },
-  });
-}
-
 function lineChart(canvas, labels, datasets, fmt) {
   const t = chartTheme();
   const colors = [t.p, t.s];
@@ -148,129 +114,173 @@ function lineChart(canvas, labels, datasets, fmt) {
   });
 }
 
-const fmtSetsN = (v) => fmtNum(v, 0);
-const fmtKgAxis = (v) => fmtKg(v);
+// --- Balance de series por grupo (compartido por Mes y Semana) ------------
 
-// --- Grupos -------------------------------------------------------------
-
-function renderGroups(body, container) {
-  const kind = ui.kind;
-  const stats = groupStatsByPeriod(kind);
-  body.innerHTML = `
-    <div class="segmented">
-      <button class="${kind === 'week' ? 'active' : ''}" data-kind="week">Semanas</button>
-      <button class="${kind === 'month' ? 'active' : ''}" data-kind="month">Meses</button>
-    </div>
-    <div class="chips-scroll">
-      ${['Resumen', ...GROUPS].map((g) => `<button class="chip ${ui.group === g ? 'active' : ''}" data-group="${esc(g)}">${esc(g)}</button>`).join('')}
-    </div>
-    <div class="group-body"></div>`;
-  body.querySelectorAll('[data-kind]').forEach((b) => {
-    b.onclick = () => { ui.kind = b.dataset.kind; ui.offset = 0; render(container); };
-  });
-  body.querySelectorAll('[data-group]').forEach((b) => {
-    b.onclick = () => { ui.group = b.dataset.group; render(container); };
-  });
-  const gb = body.querySelector('.group-body');
-  if (ui.group === 'Resumen') renderSummary(gb, stats, container);
-  else renderGroupDetail(gb, stats);
+function status(v) {
+  if (v === 0) return { cls: 'zero', label: '—' };
+  if (v < TARGET_MIN) return { cls: 'low', label: '↓ bajo' };
+  if (v > TARGET_MAX) return { cls: 'high', label: '↑ alto' };
+  return { cls: 'ok', label: '✓ bien' };
 }
 
-function renderSummary(el, stats, container) {
-  const kind = ui.kind;
-  const periods = lastPeriods(kind, 52);
-  const idx = periods.length - 1 - ui.offset;
-  const period = periods[idx];
-  const prev = periods[idx - 1];
-  const cur = stats[period.key] || emptyPeriod();
-  const before = prev ? stats[prev.key] || emptyPeriod() : null;
-  const title = kind === 'week'
-    ? (ui.offset === 0 ? 'Esta semana' : ui.offset === 1 ? 'Semana pasada' : `Semana del ${period.label}`)
-    : (ui.offset === 0 ? 'Este mes' : period.label);
+// field: 'total' (series de la semana) o 'perWeek' (promedio semanal del mes).
+function balanceHtml(groups, field) {
+  const max = Math.max(TARGET_MAX + 5, ...GROUPS.map((g) => groups[g][field]));
+  const pct = (v) => Math.min(100, (v / max) * 100);
+  return `
+    <div class="bal">
+      <div class="bal-grid bal-scale" aria-hidden="true">
+        <span></span>
+        <span class="bal-axis">
+          ${[0, TARGET_MIN, TARGET_MAX].map((t) => `<span style="left:${pct(t)}%">${t}</span>`).join('')}
+        </span>
+        <span></span><span></span>
+      </div>
+      ${GROUPS.map((g) => {
+        const row = groups[g];
+        const v = row[field];
+        const st = status(v);
+        const items = [...row.items.values()].sort((a, b) => b.sets - a.sets);
+        return `
+          <details class="bal-row">
+            <summary class="bal-grid">
+              <span class="bal-name">${esc(g)}</span>
+              <span class="bal-track">
+                <span class="bal-band" style="left:${pct(TARGET_MIN)}%;width:${pct(TARGET_MAX) - pct(TARGET_MIN)}%"></span>
+                <span class="bal-fill" style="width:${pct(v)}%"></span>
+              </span>
+              <span class="bal-val">${fmtNum(v, 1)}</span>
+              <span class="bal-status ${st.cls}">${st.label}</span>
+            </summary>
+            <div class="bal-items">
+              ${items.length ? items.map((it) => `
+                <div><span>${esc(it.name)}${it.secondary ? ' <small class="muted">(secundario)</small>' : ''}</span>
+                <span>${fmtNum(it.sets, 1)} series${field === 'perWeek' ? ' en el mes' : ''}</span></div>`).join('')
+                : '<p class="muted">Sin series.</p>'}
+            </div>
+          </details>`;
+      }).join('')}
+    </div>
+    <p class="note">Series: el grupo principal cuenta 1 y el secundario ½. Franja gris: objetivo de ${TARGET_MIN} a ${TARGET_MAX} series por semana. Tocá un grupo para ver los ejercicios.</p>`;
+}
 
-  const rows = GROUPS.map((g) => ({ g, ...cur[g], prevVol: before ? before[g].volP + before[g].volS : null }));
-  const totalDays = new Set(rows.flatMap((r) => [...r.daysAny])).size;
+function balanceCount(groups, field) {
+  const vals = GROUPS.map((g) => groups[g][field]);
+  return {
+    ok: vals.filter((v) => v >= TARGET_MIN && v <= TARGET_MAX).length,
+    low: vals.filter((v) => v < TARGET_MIN).length,
+    high: vals.filter((v) => v > TARGET_MAX).length,
+  };
+}
 
-  el.innerHTML = `
+// --- Mes ----------------------------------------------------------------
+
+const MONTHS_LONG = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+function oldestDate() {
+  return state.sessions.length ? state.sessions[state.sessions.length - 1].date : today();
+}
+
+function fmtSet(ex, s) {
+  if (WEIGHT_TYPES[ex.type]?.bodyweight && !s.w) return `${s.r} reps`;
+  return `${fmtNum(s.w || 0, 2)}${ex.type === 'mancuerna' ? ' c/u' : ''} × ${s.r}`;
+}
+
+function pctBadge(p) {
+  const r = Math.round(p);
+  return `<span class="pct ${r > 0 ? 'up' : r < 0 ? 'down' : ''}">${r > 0 ? '▲ +' : r < 0 ? '▼ ' : ''}${r}%</span>`;
+}
+
+function progressRows(list) {
+  return list.map((r) => `
+    <div class="list-item prog-row">
+      <div class="prog-top"><span>${esc(r.ex.name)}</span>${pctBadge(r.pct)}</div>
+      <small class="muted">${fmtSet(r.ex, r.first)} (${fmtDate(r.firstDate)}) → ${fmtSet(r.ex, r.last)} (${fmtDate(r.lastDate)})</small>
+    </div>`).join('');
+}
+
+function renderMonth(body, container) {
+  const now = new Date();
+  const d = new Date(now.getFullYear(), now.getMonth() - ui.monthOffset, 1);
+  const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  const canPrev = key > oldestDate().slice(0, 7);
+  const m = monthSummary(key);
+
+  body.innerHTML = `
     <div class="period-nav">
-      <button class="icon-btn" data-prev ${idx === 0 ? 'disabled' : ''} aria-label="Anterior">‹</button>
-      <strong>${esc(title)}</strong>
-      <button class="icon-btn" data-next ${ui.offset === 0 ? 'disabled' : ''} aria-label="Siguiente">›</button>
+      <button class="icon-btn" data-prev ${canPrev ? '' : 'disabled'} aria-label="Mes anterior">‹</button>
+      <strong>${MONTHS_LONG[d.getMonth()]} ${d.getFullYear()}${m.inProgress ? ' <small class="muted">(en curso)</small>' : ''}</strong>
+      <button class="icon-btn" data-next ${ui.monthOffset === 0 ? 'disabled' : ''} aria-label="Mes siguiente">›</button>
+    </div>
+    ${!m.sessionCount ? '<div class="card empty"><p>No hay entrenamientos este mes.</p></div>' : `
+    <div class="stat-tiles">
+      <div class="tile"><span class="tile-value">${m.sessionCount}</span><span class="tile-label">entrenamientos</span></div>
+      <div class="tile"><span class="tile-value">${fmtNum(m.sessionCount / m.weeks, 1)}</span><span class="tile-label">por semana</span></div>
+      <div class="tile"><span class="tile-value">${m.newRecords.length}</span><span class="tile-label">récords nuevos</span></div>
+    </div>
+
+    ${m.newRecords.length ? `
+    <section class="card list">
+      <h2 class="card-title">🏆 Récords nuevos</h2>
+      ${m.newRecords.map((r) => `
+        <div class="list-item prog-row">
+          <div class="prog-top"><span>${esc(r.ex.name)}</span><strong>${fmtSet(r.ex, r.set)}</strong></div>
+          <small class="muted">${fmtDate(r.date)} · antes: ${fmtSet(r.ex, r.prev)}</small>
+        </div>`).join('')}
+    </section>` : ''}
+
+    <section class="card list">
+      <h2 class="card-title">📈 Cómo te fue en el mes</h2>
+      ${m.improved.length ? `<h3 class="sub-title">Mejoraron (${m.improved.length})</h3>${progressRows(m.improved)}` : ''}
+      ${m.same.length ? `<h3 class="sub-title">Se mantuvieron (${m.same.length})</h3>${progressRows(m.same)}` : ''}
+      ${m.worse.length ? `<h3 class="sub-title">Bajaron (${m.worse.length})</h3>${progressRows(m.worse)}` : ''}
+      ${!m.improved.length && !m.same.length && !m.worse.length
+        ? '<p class="muted pad">Todavía no repetiste ningún ejercicio este mes.</p>' : ''}
+      <p class="note pad">Compara la mejor serie de la primera y la última vez que hiciste cada ejercicio en el mes (más peso o más reps suben el %).${m.once.length ? ` ${m.once.length} ejercicio${m.once.length > 1 ? 's' : ''} hecho${m.once.length > 1 ? 's' : ''} una sola vez no se compara${m.once.length > 1 ? 'n' : ''}.` : ''}</p>
+    </section>
+
+    <section class="card">
+      <h2 class="card-title">Series por grupo <small class="muted">(promedio por semana)</small></h2>
+      ${balanceHtml(m.groups, 'perWeek')}
+    </section>`}`;
+
+  body.querySelector('[data-prev]').onclick = () => { ui.monthOffset++; render(container); };
+  body.querySelector('[data-next]').onclick = () => { ui.monthOffset--; render(container); };
+}
+
+// --- Semana -------------------------------------------------------------
+
+function renderWeek(body, container) {
+  const from = addDays(weekStart(today()), -7 * ui.weekOffset);
+  const to = addDays(from, 6);
+  const canPrev = from > oldestDate();
+  const groups = groupSets(from, to);
+  const c = balanceCount(groups, 'total');
+  const f = parseDate(from);
+  const t = parseDate(to);
+  const range = f.getMonth() === t.getMonth()
+    ? `${f.getDate()} al ${t.getDate()} ${monthName(t.getMonth())}`
+    : `${f.getDate()} ${monthName(f.getMonth())} al ${t.getDate()} ${monthName(t.getMonth())}`;
+  const sessions = state.sessions.filter((s) => s.date >= from && s.date <= to).length;
+
+  body.innerHTML = `
+    <div class="period-nav">
+      <button class="icon-btn" data-prev ${canPrev ? '' : 'disabled'} aria-label="Semana anterior">‹</button>
+      <strong>${range}${ui.weekOffset === 0 ? ' <small class="muted">(en curso)</small>' : ''}</strong>
+      <button class="icon-btn" data-next ${ui.weekOffset === 0 ? 'disabled' : ''} aria-label="Semana siguiente">›</button>
     </div>
     <div class="stat-tiles">
-      <div class="tile"><span class="tile-value">${totalDays}</span><span class="tile-label">días entrenados</span></div>
-      <div class="tile"><span class="tile-value">${rows.reduce((a, r) => a + r.setsP, 0)}</span><span class="tile-label">series</span></div>
-      <div class="tile"><span class="tile-value">${fmtKg(rows.reduce((a, r) => a + r.volP, 0))}</span><span class="tile-label">volumen</span></div>
+      <div class="tile"><span class="tile-value">${sessions}</span><span class="tile-label">entrenamientos</span></div>
+      <div class="tile"><span class="tile-value">${c.ok}</span><span class="tile-label">grupos en rango</span></div>
+      <div class="tile"><span class="tile-value">${c.low}</span><span class="tile-label">grupos bajos</span></div>
     </div>
     <section class="card">
       <h2 class="card-title">Series por grupo</h2>
-      <div class="chart-box tall"><canvas></canvas></div>
-    </section>
-    <section class="card">
-      <h2 class="card-title">Detalle</h2>
-      <div class="table-wrap">
-        <table class="table">
-          <thead><tr><th>Grupo</th><th>Series<br><small>princ. / sec.</small></th><th>Volumen<br><small>princ. / sec.</small></th><th>Días</th></tr></thead>
-          <tbody>
-            ${rows.map((r) => `
-              <tr class="${r.setsP + r.setsS ? '' : 'dim'}">
-                <td>${esc(r.g)}</td>
-                <td><span class="dot p"></span>${r.setsP} / <span class="dot s"></span>${r.setsS}</td>
-                <td>${fmtKg(r.volP)} / ${fmtKg(r.volS)}${trend(r.volP + r.volS, r.prevVol)}</td>
-                <td>${r.daysP.size}${r.daysAny.size > r.daysP.size ? ` <small class="muted">(${r.daysAny.size})</small>` : ''}</td>
-              </tr>`).join('')}
-          </tbody>
-        </table>
-      </div>
-      <p class="note">Volumen = kg × reps (mancuernas × 2; sin peso no suma). Días: como principal (entre paréntesis, incluyendo secundario). La flecha compara el volumen total con el período anterior.</p>
+      ${balanceHtml(groups, 'total')}
     </section>`;
-  el.querySelector('[data-prev]').onclick = () => { ui.offset++; render(container); };
-  el.querySelector('[data-next]').onclick = () => { ui.offset--; render(container); };
-  stackedBar(el.querySelector('canvas'), GROUPS, rows.map((r) => r.setsP), rows.map((r) => r.setsS), fmtSetsN, true);
-}
 
-function trend(now, prev) {
-  if (prev === null || (!now && !prev)) return '';
-  if (!prev) return ' <small class="trend up">nuevo</small>';
-  const pct = Math.round(((now - prev) / prev) * 100);
-  if (pct === 0) return ' <small class="trend">=</small>';
-  return ` <small class="trend ${pct > 0 ? 'up' : 'down'}">${pct > 0 ? '▲' : '▼'}${Math.abs(pct)}%</small>`;
-}
-
-function renderGroupDetail(el, stats) {
-  const g = ui.group;
-  const periods = lastPeriods(ui.kind, 12);
-  const rows = periods.map((p) => ({ ...p, ...(stats[p.key]?.[g] || emptyPeriod()[g]) }));
-  const unit = ui.kind === 'week' ? 'semana' : 'mes';
-  el.innerHTML = `
-    <section class="card">
-      <h2 class="card-title">Volumen por ${unit} · ${esc(g)}</h2>
-      <div class="chart-box"><canvas data-c="vol"></canvas></div>
-    </section>
-    <section class="card">
-      <h2 class="card-title">Series por ${unit} · ${esc(g)}</h2>
-      <div class="chart-box"><canvas data-c="sets"></canvas></div>
-    </section>
-    <section class="card">
-      <h2 class="card-title">Tabla</h2>
-      <div class="table-wrap">
-        <table class="table">
-          <thead><tr><th>${ui.kind === 'week' ? 'Semana' : 'Mes'}</th><th>Series<br><small>princ. / sec.</small></th><th>Volumen<br><small>princ. / sec.</small></th><th>Días</th></tr></thead>
-          <tbody>
-            ${[...rows].reverse().map((r) => `
-              <tr class="${r.setsP + r.setsS ? '' : 'dim'}">
-                <td>${esc(r.label)}</td>
-                <td>${r.setsP} / ${r.setsS}</td>
-                <td>${fmtKg(r.volP)} / ${fmtKg(r.volS)}</td>
-                <td>${r.daysP.size}${r.daysAny.size > r.daysP.size ? ` <small class="muted">(${r.daysAny.size})</small>` : ''}</td>
-              </tr>`).join('')}
-          </tbody>
-        </table>
-      </div>
-    </section>`;
-  const labels = rows.map((r) => r.label);
-  stackedBar(el.querySelector('[data-c="vol"]'), labels, rows.map((r) => Math.round(r.volP)), rows.map((r) => Math.round(r.volS)), fmtKgAxis);
-  stackedBar(el.querySelector('[data-c="sets"]'), labels, rows.map((r) => r.setsP), rows.map((r) => r.setsS), fmtSetsN);
+  body.querySelector('[data-prev]').onclick = () => { ui.weekOffset++; render(container); };
+  body.querySelector('[data-next]').onclick = () => { ui.weekOffset--; render(container); };
 }
 
 // --- Ejercicio ----------------------------------------------------------
