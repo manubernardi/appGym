@@ -96,7 +96,8 @@ export async function readPlanPhoto(file) {
       return clean(JSON.parse(res.response.text()));
     } catch (err) {
       lastErr = err;
-      if (!/not found|404|not supported/i.test(err.message)) break;
+      // Modelo retirado o saturado: se prueba el siguiente. Otros errores (sin internet, permisos) cortan acá.
+      if (!/not found|not supported|high demand|overloaded|unavailable|\[(404|429|500|503) /i.test(err.message)) break;
     }
   }
   throw lastErr;
