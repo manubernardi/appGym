@@ -74,6 +74,13 @@ Para cada ejercicio buscá el equivalente en esta lista (id | nombre | tipo | gr
 Asociálo aunque esté escrito distinto, abreviado o con sinónimos
 (ej. "press banco barra" = "Press banca plano", "polea al pecho" = "Jalón al pecho", "vuelos laterales" = "Elevaciones laterales").
 Fijate que coincida el implemento (barra, mancuerna, máquina, polea) cuando la hoja lo indica.
+Palabras que cambian el ejercicio aunque la hoja no nombre el implemento:
+- "alternado" / "alternada": se hace con mancuernas. Asociálo al ejercicio equivalente con mancuernas
+  (ej. "Press militar alternado" = "Press de hombros con mancuernas", "Curl alternado" = "Curl con mancuernas").
+- "unilateral", "a una mano", "a un brazo", "a una pierna": se hace de un lado por vez.
+  Si en la lista hay una versión que ya es de un lado (ej. "Remo unilateral" = "Remo con mancuerna"), usala.
+  Si no, NO lo asocies a la versión de dos lados: creá uno nuevo con el nombre de la versión normal + " unilateral",
+  con el mismo tipo y grupos (ej. "Tríceps polea unilateral" → nuevo "Extensión de tríceps en polea unilateral").
 Solo si no hay ninguno equivalente dejá exerciseId vacío y completá newName, newType, newPrimary y newSecondary.
 
 Tipos: barra = peso total de la barra; mancuerna = peso de una mancuerna; maquina = máquina o polea; corporal = sin peso.

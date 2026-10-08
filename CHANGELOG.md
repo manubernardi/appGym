@@ -31,6 +31,9 @@ El volumen en kg y la separación principal/secundario resultaban confusos, así
   - Le pasa a Gemini tu lista de ejercicios para que **asocie los que están escritos distinto** a uno que ya tenés
     (ej. "press banco barra" → "Press banca plano") y tenga en cuenta el implemento (barra, mancuerna, máquina, polea).
   - Si un ejercicio no existe, propone **crearlo** con nombre, tipo de peso, grupo principal y grupos secundarios.
+  - **"Alternado"** implica mancuernas y se asocia al mismo ejercicio con mancuernas ("Press militar alternado" → "Press de hombros con mancuernas").
+  - **"Unilateral" / "a una mano" / "a un brazo"** se guarda como un ejercicio aparte ("Tríceps polea unilateral" → nuevo "Extensión de tríceps en polea unilateral"),
+    porque el peso de un brazo no se compara con el de dos. Si ya existe una versión de un lado ("Remo unilateral" → "Remo con mancuerna"), usa esa.
   - El objetivo se guarda **tal cual está escrito** ("3X10").
 - **Pantalla de revisión** antes de guardar:
   - Podés cambiar el nombre de cada rutina, cambiar un ejercicio por otro (tocándolo), corregir el objetivo o quitar ejercicios.
