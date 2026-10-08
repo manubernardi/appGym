@@ -237,35 +237,53 @@ function itemLabel(it) {
     <small class="muted block">${esc(WEIGHT_TYPES[n.type].short)} · ${esc(groups)}</small>`;
 }
 
+// Cada día de la foto se carga como rutina nueva, actualiza una rutina del plan actual
+// (conserva la semana en la que vas, porque la semana se cuenta por rutina) o no se carga.
+// La tabla de progresión es una sola para todo el plan.
 function openImportReview(plan) {
   const active = state.routines.filter((r) => !r.archived);
-  plan.routines.forEach((r) => { r.include = true; });
-  // Con plan cargado: reemplazarlo o sumarle rutinas. Si destildás algún día, pasa a "agregar"
-  // salvo que hayas elegido a mano.
-  plan.mode = active.length ? 'replace' : 'add';
-  let modeChosen = false;
-  const modeOptions = () => `
-    <label class="radio-row"><input type="radio" name="mode" value="replace" ${plan.mode === 'replace' ? 'checked' : ''}>
-      <span>Reemplazar el plan actual <small class="muted block">Las rutinas actuales se archivan (tus registros no se borran).</small></span></label>
-    <label class="radio-row"><input type="radio" name="mode" value="add" ${plan.mode === 'add' ? 'checked' : ''}>
-      <span>Agregar al plan actual <small class="muted block">Se suman a ${active.map((r) => esc(r.name)).join(', ')}.</small></span></label>`;
+  plan.routines.forEach((r) => { r.dest = 'new'; });
+  // Rutinas actuales que no se actualizan: se archivan (plan nuevo) o se dejan (se suman días).
+  // Si todos los días van como rutina nueva, se archivan; si no, se dejan. Salvo que lo elijas a mano.
+  let keepChosen = false;
+  const targets = () => new Set(plan.routines.map((r) => r.dest));
+  const others = () => active.filter((a) => !targets().has(a.id));
+  const autoKeep = () => !plan.routines.every((r) => r.dest === 'new');
+  plan.keepOthers = autoKeep();
+  const destOptions = (r) => `
+    <option value="new" ${r.dest === 'new' ? 'selected' : ''}>Nueva rutina</option>
+    ${active.map((a) => `<option value="${a.id}" ${r.dest === a.id ? 'selected' : ''}>Actualizar ${esc(a.name)}</option>`).join('')}
+    <option value="skip" ${r.dest === 'skip' ? 'selected' : ''}>No cargar</option>`;
+  const othersOptions = () => {
+    const list = others();
+    if (!list.length) return '';
+    const names = list.map((a) => esc(a.name)).join(', ');
+    return `
+      <section class="card">
+        <p class="muted">Las demás rutinas del plan actual (${names}):</p>
+        <label class="radio-row"><input type="radio" name="others" value="archive" ${plan.keepOthers ? '' : 'checked'}>
+          <span>Archivarlas <small class="muted block">Plan nuevo. Tus registros no se borran.</small></span></label>
+        <label class="radio-row"><input type="radio" name="others" value="keep" ${plan.keepOthers ? 'checked' : ''}>
+          <span>Dejarlas en el plan <small class="muted block">Los días de la foto se suman a ellas.</small></span></label>
+      </section>`;
+  };
   openModal('Revisá el plan', (body, close) => {
     const draw = () => {
       body.innerHTML = `
         ${plan.progression.length ? `
           <section class="card">
             <h2>Progresión semanal</h2>
-            <p class="muted">Filas = semanas, columnas = progresiones. Corregí lo que haya leído mal.</p>
+            <p class="muted">Filas = semanas, columnas = progresiones. Corregí lo que haya leído mal. Vale para todos los días del plan.</p>
             ${progressionTable(plan.progression, true)}
           </section>` : ''}
-        <p class="muted">Destildá los días que no quieras cargar. Tocá un ejercicio para cambiarlo por otro.
-          Los marcados como <span class="tag-new">nuevo</span> se crean al guardar.</p>
+        <p class="muted">${active.length ? 'Elegí cómo cargar cada día: como rutina nueva o actualizando una que ya tenés (mantiene la semana en la que vas). ' : ''}
+          Tocá un ejercicio para cambiarlo por otro. Los marcados como <span class="tag-new">nuevo</span> se crean al guardar.</p>
         ${plan.routines.map((r, ri) => `
-          <section class="card ${r.include ? '' : 'excluded'}" data-ri="${ri}">
-            <div class="entry-head">
-              <input type="checkbox" class="check" data-include ${r.include ? 'checked' : ''} aria-label="Cargar este día">
-              <input class="input grow" data-rname value="${esc(r.name)}" placeholder="Nombre de la rutina">
-            </div>
+          <section class="card ${r.dest === 'skip' ? 'excluded' : ''}" data-ri="${ri}">
+            <input class="input" data-rname value="${esc(r.name)}" placeholder="Nombre de la rutina">
+            <label class="dest">Cargar como
+              <select class="input" data-dest>${destOptions(r)}</select>
+            </label>
             <div class="routine-edit-items">
               ${r.items.map((it, i) => `
                 <div class="routine-edit-row" data-i="${i}">
@@ -282,7 +300,7 @@ function openImportReview(plan) {
                 </div>`).join('') || '<p class="muted">Sin ejercicios.</p>'}
             </div>
           </section>`).join('')}
-        ${active.length ? `<section class="card" data-modes>${modeOptions()}</section>` : ''}
+        <div data-others>${othersOptions()}</div>
         <div class="row-actions">
           <button class="btn" data-cancel>Cancelar</button>
           <button class="btn btn-primary" data-save>Guardar</button>
@@ -312,17 +330,23 @@ function openImportReview(plan) {
         const { r, i } = locate(e.target);
         r.items[i].prog = Number(e.target.value);
       }
-      if (e.target.matches('[data-include]')) {
-        locate(e.target).r.include = e.target.checked;
-        e.target.closest('[data-ri]').classList.toggle('excluded', !e.target.checked);
-        if (active.length && !modeChosen) {
-          plan.mode = plan.routines.every((r) => r.include) ? 'replace' : 'add';
-          body.querySelector('[data-modes]').innerHTML = modeOptions();
+      if (e.target.matches('[data-dest]')) {
+        const { r } = locate(e.target);
+        r.dest = e.target.value;
+        const section = e.target.closest('[data-ri]');
+        section.classList.toggle('excluded', r.dest === 'skip');
+        // Al actualizar una rutina, se mantiene su nombre.
+        const updated = active.find((a) => a.id === r.dest);
+        if (updated) {
+          r.name = updated.name;
+          section.querySelector('[data-rname]').value = updated.name;
         }
+        if (!keepChosen) plan.keepOthers = autoKeep();
+        body.querySelector('[data-others]').innerHTML = othersOptions();
       }
-      if (e.target.name === 'mode') {
-        plan.mode = e.target.value;
-        modeChosen = true;
+      if (e.target.name === 'others') {
+        plan.keepOthers = e.target.value === 'keep';
+        keepChosen = true;
       }
     });
     body.addEventListener('click', (e) => {
@@ -344,9 +368,11 @@ function openImportReview(plan) {
 }
 
 function saveImported(plan, active) {
-  const routines = plan.routines.filter((r) => r.include && r.items.length);
+  const routines = plan.routines.filter((r) => r.dest !== 'skip' && r.items.length);
   if (!routines.length) { toast('Elegí al menos un día con ejercicios.'); return false; }
   if (routines.some((r) => !r.name.trim())) { toast('Poné un nombre a cada rutina.'); return false; }
+  const dests = routines.map((r) => r.dest).filter((d) => d !== 'new');
+  if (new Set(dests).size !== dests.length) { toast('Dos días de la foto actualizan la misma rutina.'); return false; }
   if (routines.some((r) => r.items.some((it) => it.newExercise && !it.newExercise.primary))) {
     toast('Hay un ejercicio nuevo sin grupo: tocalo y elegí uno de la lista.');
     return false;
@@ -362,21 +388,42 @@ function saveImported(plan, active) {
   const progression = plan.progression
     .map((w) => ({ targets: w.targets.map((t) => t.trim()) }))
     .filter((w) => w.targets.some(Boolean));
+  const withTable = (r) => {
+    const { progression: _old, ...rest } = r;
+    return progression.length ? { ...rest, progression } : rest;
+  };
   const now = Date.now();
-  const toSave = routines.map((r, k) => ({
-    name: r.name.trim(),
-    createdAt: new Date(now + k).toISOString(), // mantiene el orden Día A, Día B…
-    archived: false,
-    items: r.items.map((it) => ({
+  let added = 0;
+  let updated = 0;
+  routines.forEach((r, k) => {
+    const items = r.items.map((it) => ({
       exerciseId: idFor(it),
       target: it.target.trim(),
       ...(progression.length ? { prog: it.prog || 1 } : {}),
-    })),
-    ...(progression.length ? { progression } : {}),
-  }));
-  if (plan.mode === 'replace') active.forEach((r) => save('routines', { ...r, archived: true }));
-  toSave.forEach((r) => save('routines', r));
-  const n = `${toSave.length} rutina${toSave.length === 1 ? '' : 's'}`;
-  toast(plan.mode === 'replace' ? `Plan guardado: ${n}.` : `Se agregó${toSave.length === 1 ? '' : 'ron'} ${n} al plan.`);
+    }));
+    const existing = active.find((a) => a.id === r.dest);
+    if (existing) {
+      save('routines', withTable({ ...existing, name: r.name.trim(), items }));
+      updated++;
+    } else {
+      save('routines', withTable({
+        name: r.name.trim(),
+        createdAt: new Date(now + k).toISOString(), // mantiene el orden Día A, Día B…
+        archived: false,
+        items,
+      }));
+      added++;
+    }
+  });
+  const dested = new Set(dests);
+  active.filter((a) => !dested.has(a.id)).forEach((a) => {
+    if (!plan.keepOthers) save('routines', { ...a, archived: true });
+    // La tabla es del plan: las rutinas que ya seguían una progresión toman la nueva.
+    else if (progression.length && hasProgression(a)) save('routines', withTable(a));
+  });
+  const parts = [];
+  if (added) parts.push(`${added} rutina${added === 1 ? '' : 's'} nueva${added === 1 ? '' : 's'}`);
+  if (updated) parts.push(`${updated} actualizada${updated === 1 ? '' : 's'}`);
+  toast(`Plan guardado: ${parts.join(', ')}.`);
   return true;
 }
