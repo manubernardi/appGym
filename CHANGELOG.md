@@ -40,8 +40,11 @@ El volumen en kg y la separación principal/secundario resultaban confusos, así
   - Podés cambiar el nombre de cada rutina, cambiar un ejercicio por otro (tocándolo), corregir el objetivo o quitar ejercicios.
   - Para cada ejercicio muestra lo que decía la hoja ("En la hoja: …").
   - Los ejercicios que se van a crear aparecen marcados como **nuevo**, con su tipo de peso y sus grupos.
+- **Elegir qué días cargar**: cada día de la foto tiene una casilla. Si ya tenés un plan, elegís entre
+  **Reemplazar el plan actual** (se archiva) o **Agregar al plan actual** (ej. ya cargaste 2 días a mano y solo falta el tercero).
+  Si están todos los días tildados, la opción marcada es reemplazar; al destildar alguno pasa sola a agregar, salvo que la hayas elegido a mano.
 - Al guardar:
-  - El plan actual **se archiva automáticamente** (los registros de entrenamientos no se tocan).
+  - Si elegiste reemplazar, el plan actual **se archiva** (los registros de entrenamientos no se tocan).
   - Los ejercicios nuevos se crean una sola vez, aunque aparezcan en varias rutinas o ya exista uno con el mismo nombre.
   - Las rutinas quedan en el mismo orden que en la hoja (Día A, Día B…).
 - Leer la foto necesita internet. Sin conexión, la app avisa y no intenta leerla.
@@ -71,7 +74,7 @@ Está explicado en el paso 1b del [README](README.md).
 | [`js/views/plan.js`](js/views/plan.js) | Botón de foto, pantalla de carga, pantalla de revisión y guardado (`importFromPhoto`, `openImportReview`, `saveImported`). El módulo de IA se carga recién al usarlo, así el resto de la app no lo descarga. Tabla de progresión (de lectura y editable) y selector de progresión por ejercicio. |
 | [`js/db.js`](js/db.js) | Firebase pasa de la versión **10.12.2** a la **12.19.0** (el módulo de IA necesita la 12) y se exporta `app`. |
 | [`js/views/exercises.js`](js/views/exercises.js) | Ahora se exporta `normalize()` (comparar nombres sin mayúsculas ni acentos), para que lo use plan.js. |
-| [`css/styles.css`](css/styles.css) | Estilos nuevos: `.tag-new` (etiqueta "nuevo"), `.link-btn`, `.block` y `.prog-table`. |
+| [`css/styles.css`](css/styles.css) | Estilos nuevos: `.tag-new` (etiqueta "nuevo"), `.link-btn`, `.block`, `.prog-table`, `.check`, `.radio-row` y `.excluded`. |
 | [`sw.js`](sw.js) | Caché `gimnasio-v3` y se agregan `js/plan-import.js` y `js/progression.js` a la lista de archivos offline. |
 | [`README.md`](README.md) | Paso 1b (activar AI Logic) y descripción de la carga por foto. |
 

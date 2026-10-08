@@ -239,6 +239,16 @@ function itemLabel(it) {
 
 function openImportReview(plan) {
   const active = state.routines.filter((r) => !r.archived);
+  plan.routines.forEach((r) => { r.include = true; });
+  // Con plan cargado: reemplazarlo o sumarle rutinas. Si destildás algún día, pasa a "agregar"
+  // salvo que hayas elegido a mano.
+  plan.mode = active.length ? 'replace' : 'add';
+  let modeChosen = false;
+  const modeOptions = () => `
+    <label class="radio-row"><input type="radio" name="mode" value="replace" ${plan.mode === 'replace' ? 'checked' : ''}>
+      <span>Reemplazar el plan actual <small class="muted block">Las rutinas actuales se archivan (tus registros no se borran).</small></span></label>
+    <label class="radio-row"><input type="radio" name="mode" value="add" ${plan.mode === 'add' ? 'checked' : ''}>
+      <span>Agregar al plan actual <small class="muted block">Se suman a ${active.map((r) => esc(r.name)).join(', ')}.</small></span></label>`;
   openModal('Revisá el plan', (body, close) => {
     const draw = () => {
       body.innerHTML = `
@@ -248,11 +258,14 @@ function openImportReview(plan) {
             <p class="muted">Filas = semanas, columnas = progresiones. Corregí lo que haya leído mal.</p>
             ${progressionTable(plan.progression, true)}
           </section>` : ''}
-        <p class="muted">Tocá un ejercicio para cambiarlo por otro. Los marcados como <span class="tag-new">nuevo</span> se crean al guardar.
-          ${active.length ? 'El plan actual se archiva (tus registros no se borran).' : ''}</p>
+        <p class="muted">Destildá los días que no quieras cargar. Tocá un ejercicio para cambiarlo por otro.
+          Los marcados como <span class="tag-new">nuevo</span> se crean al guardar.</p>
         ${plan.routines.map((r, ri) => `
-          <section class="card" data-ri="${ri}">
-            <input class="input" data-rname value="${esc(r.name)}" placeholder="Nombre de la rutina">
+          <section class="card ${r.include ? '' : 'excluded'}" data-ri="${ri}">
+            <div class="entry-head">
+              <input type="checkbox" class="check" data-include ${r.include ? 'checked' : ''} aria-label="Cargar este día">
+              <input class="input grow" data-rname value="${esc(r.name)}" placeholder="Nombre de la rutina">
+            </div>
             <div class="routine-edit-items">
               ${r.items.map((it, i) => `
                 <div class="routine-edit-row" data-i="${i}">
@@ -269,9 +282,10 @@ function openImportReview(plan) {
                 </div>`).join('') || '<p class="muted">Sin ejercicios.</p>'}
             </div>
           </section>`).join('')}
+        ${active.length ? `<section class="card" data-modes>${modeOptions()}</section>` : ''}
         <div class="row-actions">
           <button class="btn" data-cancel>Cancelar</button>
-          <button class="btn btn-primary" data-save>Guardar plan</button>
+          <button class="btn btn-primary" data-save>Guardar</button>
         </div>`;
     };
     draw();
@@ -298,6 +312,18 @@ function openImportReview(plan) {
         const { r, i } = locate(e.target);
         r.items[i].prog = Number(e.target.value);
       }
+      if (e.target.matches('[data-include]')) {
+        locate(e.target).r.include = e.target.checked;
+        e.target.closest('[data-ri]').classList.toggle('excluded', !e.target.checked);
+        if (active.length && !modeChosen) {
+          plan.mode = plan.routines.every((r) => r.include) ? 'replace' : 'add';
+          body.querySelector('[data-modes]').innerHTML = modeOptions();
+        }
+      }
+      if (e.target.name === 'mode') {
+        plan.mode = e.target.value;
+        modeChosen = true;
+      }
     });
     body.addEventListener('click', (e) => {
       const btn = e.target.closest('button');
@@ -318,7 +344,8 @@ function openImportReview(plan) {
 }
 
 function saveImported(plan, active) {
-  const routines = plan.routines.filter((r) => r.items.length);
+  const routines = plan.routines.filter((r) => r.include && r.items.length);
+  if (!routines.length) { toast('Elegí al menos un día con ejercicios.'); return false; }
   if (routines.some((r) => !r.name.trim())) { toast('Poné un nombre a cada rutina.'); return false; }
   if (routines.some((r) => r.items.some((it) => it.newExercise && !it.newExercise.primary))) {
     toast('Hay un ejercicio nuevo sin grupo: tocalo y elegí uno de la lista.');
@@ -347,8 +374,9 @@ function saveImported(plan, active) {
     })),
     ...(progression.length ? { progression } : {}),
   }));
-  active.forEach((r) => save('routines', { ...r, archived: true }));
+  if (plan.mode === 'replace') active.forEach((r) => save('routines', { ...r, archived: true }));
   toSave.forEach((r) => save('routines', r));
-  toast(`Plan guardado: ${toSave.length} rutina${toSave.length === 1 ? '' : 's'}.`);
+  const n = `${toSave.length} rutina${toSave.length === 1 ? '' : 's'}`;
+  toast(plan.mode === 'replace' ? `Plan guardado: ${n}.` : `Se agregó${toSave.length === 1 ? '' : 'ron'} ${n} al plan.`);
   return true;
 }

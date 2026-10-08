@@ -252,6 +252,12 @@ label .input { margin-top: 4px; }
 .routine-edit-row .target { margin-top: 6px; min-height: 40px; }
 .row-btns { display: flex; }
 .block { display: block; }
+.check { width: 22px; height: 22px; margin: 12px 2px 0; accent-color: var(--accent); flex: none; }
+.excluded .routine-edit-items { display: none; }
+.excluded [data-rname] { opacity: .5; }
+.radio-row { display: flex; gap: 10px; align-items: flex-start; color: var(--text-primary); font-size: 1rem; }
+.radio-row:last-child { margin-bottom: 0; }
+.radio-row input { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--accent); flex: none; }
 .link-btn {
   background: none; border: none; padding: 0; text-align: left; width: 100%;
   font: inherit; color: var(--text-primary); cursor: pointer;
