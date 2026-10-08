@@ -324,6 +324,8 @@ legend { font-size: .9rem; color: var(--text-secondary); margin-bottom: 6px; }
 .table td { padding: 8px 4px; border-bottom: 1px solid var(--border); white-space: nowrap; }
 .table tr:last-child td { border-bottom: none; }
 .table tr.dim td { color: var(--text-muted); }
+.prog-table th:first-child { width: 1%; }
+.prog-table td .input { min-height: 36px; padding: 4px 6px; min-width: 64px; }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
 .dot.p { background: var(--series-1); }
 .dot.s { background: var(--series-2); }

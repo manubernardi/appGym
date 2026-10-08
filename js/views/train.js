@@ -8,6 +8,7 @@ import { save, remove } from '../db.js';
 import { esc, today, fmtDate, parseNum, openModal, confirmDialog, toast } from '../ui.js';
 import { lastTime, fmtSets, validSets } from '../stats.js';
 import { openExercisePicker } from './exercises.js';
+import { currentWeek, itemTarget } from '../progression.js';
 
 let editing = null; // { session, fromHistory }
 let saveTimer = null;
@@ -77,7 +78,7 @@ function renderHome(container) {
       ${routines.map((r) => `
         <button class="routine-btn" data-routine="${r.id}">
           <strong>${esc(r.name)}</strong>
-          <small>${(r.items || []).length} ejercicios${lastDoneLabel(r.id)}</small>
+          <small>${weekLabel(r)}${(r.items || []).length} ejercicios${lastDoneLabel(r.id)}</small>
         </button>`).join('')}
       <button class="routine-btn routine-free" data-free>
         <strong>Entrenamiento libre</strong>
@@ -100,19 +101,26 @@ function renderHome(container) {
   container.querySelector('[data-free]').onclick = () => start(container, null);
 }
 
+function weekLabel(routine) {
+  const w = currentWeek(routine);
+  return w ? `Semana ${w} de ${routine.progression.length} · ` : '';
+}
+
 function lastDoneLabel(routineId) {
   const s = state.sessions.find((x) => x.routineId === routineId);
   return s ? ` · última: ${fmtDate(s.date)}` : '';
 }
 
 function start(container, routine) {
+  const week = currentWeek(routine);
   const entries = (routine?.items || [])
     .filter((it) => state.exercises.has(it.exerciseId))
-    .map((it) => newEntry(state.exercises.get(it.exerciseId), it.target));
+    .map((it) => newEntry(state.exercises.get(it.exerciseId), itemTarget(routine, it, week)));
   const session = {
     date: today(),
     routineId: routine?.id || null,
     routineName: routine?.name || 'Entrenamiento libre',
+    week,
     finished: false,
     createdAt: new Date().toISOString(),
     entries,
@@ -158,7 +166,7 @@ function renderEditor(container) {
     <div class="session-head">
       ${hist ? '<button class="icon-btn" data-back aria-label="Volver">←</button>' : ''}
       <div class="grow">
-        <h1>${esc(s.routineName || 'Entrenamiento')}</h1>
+        <h1>${esc(s.routineName || 'Entrenamiento')}${s.week ? ` <small class="muted">· semana ${s.week}</small>` : ''}</h1>
         <input class="input date-input" type="date" value="${s.date}" data-date>
       </div>
       ${!hist ? '<span class="badge live">En curso</span>' : ''}

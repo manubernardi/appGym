@@ -17,6 +17,7 @@ const APP_FILES = [
   './js/stats.js',
   './js/firebase-config.js',
   './js/plan-import.js',
+  './js/progression.js',
   './js/views/train.js',
   './js/views/plan.js',
   './js/views/progress.js',

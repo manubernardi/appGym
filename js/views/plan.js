@@ -1,10 +1,12 @@
-// Pestaña "Plan": rutinas del mes (Día A, Día B…) con sus ejercicios y objetivo (ej. 3x10).
+// Pestaña "Plan": rutinas del mes (Día A, Día B…) con sus ejercicios y objetivo (ej. 3x10),
+// o con el número de progresión semanal de cada ejercicio (ver progression.js).
 
 import { state } from '../store.js';
 import { save, remove } from '../db.js';
 import { esc, openModal, confirmDialog, toast } from '../ui.js';
 import { openExercisePicker, normalize } from './exercises.js';
 import { WEIGHT_TYPES } from '../data.js';
+import { hasProgression, progCount, currentWeek, itemTarget } from '../progression.js';
 
 export function render(container) {
   const active = state.routines.filter((r) => !r.archived);
@@ -14,6 +16,7 @@ export function render(container) {
     ${active.length ? '' : '<p class="muted">Cargá las rutinas de tu plan actual (por ejemplo "Día A", "Día B"), o sacale una foto a la hoja.</p>'}
     <button class="btn btn-block" data-photo>📷 Cargar plan desde foto</button>
     <input type="file" accept="image/*" data-photo-input hidden>
+    ${progressionCard(active.find(hasProgression)?.progression)}
     ${active.map(routineCard).join('')}
     <button class="btn btn-primary btn-block" data-new>+ Nueva rutina</button>
     ${active.length ? '<button class="btn btn-block" data-archive-all>Empezar plan nuevo (archivar el actual)</button>' : ''}
@@ -30,7 +33,11 @@ export function render(container) {
     photoInput.value = '';
     if (file) importFromPhoto(file);
   };
-  container.querySelector('[data-new]').onclick = () => openRoutineEditor({ name: suggestName(active), items: [] });
+  container.querySelector('[data-new]').onclick = () => {
+    // Una rutina nueva usa la misma tabla de progresión que el plan actual.
+    const progression = active.find(hasProgression)?.progression;
+    openRoutineEditor({ name: suggestName(active), items: [], ...(progression ? { progression: structuredClone(progression) } : {}) });
+  };
   container.querySelector('[data-archive-all]')?.addEventListener('click', async () => {
     if (!(await confirmDialog('Se archivan las rutinas actuales (tus registros no se borran). ¿Continuar?', 'Archivar'))) return;
     active.forEach((r) => save('routines', { ...r, archived: true }));
@@ -45,7 +52,12 @@ export function render(container) {
     else if (act === 'archive') save('routines', { ...r, archived: true });
     else if (act === 'restore') save('routines', { ...r, archived: false });
     else if (act === 'copy') {
-      save('routines', { name: r.name + ' (copia)', items: structuredClone(r.items || []), archived: false });
+      save('routines', {
+        name: r.name + ' (copia)',
+        items: structuredClone(r.items || []),
+        ...(hasProgression(r) ? { progression: structuredClone(r.progression) } : {}),
+        archived: false,
+      });
       toast('Rutina copiada al plan actual.');
     } else if (act === 'delete' && await confirmDialog(`¿Borrar la rutina "${r.name}"? Tus registros no se borran.`, 'Borrar', true)) {
       remove('routines', r.id);
@@ -58,12 +70,46 @@ function suggestName(active) {
   return active.length < 26 ? `Día ${letter}` : '';
 }
 
+// Tabla de progresión: filas = semanas, columnas = progresiones.
+// Con `editable`, cada celda es un input (data-cell="semana,progresión").
+function progressionTable(progression, editable = false) {
+  const n = Math.max(0, ...progression.map((w) => w.targets.length));
+  const cols = Array.from({ length: n }, (_, j) => j);
+  return `
+    <div class="table-wrap">
+      <table class="table prog-table">
+        <thead><tr><th>Semana</th>${cols.map((j) => `<th>Prog. ${j + 1}</th>`).join('')}</tr></thead>
+        <tbody>
+          ${progression.map((w, i) => `<tr><th>${i + 1}</th>${cols.map((j) => `<td>${editable
+            ? `<input class="input" data-cell="${i},${j}" value="${esc(w.targets[j] || '')}">`
+            : esc(w.targets[j] || '–')}</td>`).join('')}</tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function progressionCard(progression) {
+  if (!progression?.length) return '';
+  return `
+    <section class="card">
+      <h2>Progresión semanal</h2>
+      <p class="muted">Cada ejercicio sigue una progresión. La semana de cada día avanza con las veces que lo hiciste.</p>
+      ${progressionTable(progression)}
+    </section>`;
+}
+
+function progOptions(n, selected) {
+  return Array.from({ length: n }, (_, j) =>
+    `<option value="${j + 1}" ${selected === j + 1 ? 'selected' : ''}>Progresión ${j + 1}</option>`).join('');
+}
+
 function routineCard(r) {
   const items = r.items || [];
+  const week = r.archived ? null : currentWeek(r);
   return `
     <section class="card routine" data-id="${r.id}">
       <div class="entry-head">
-        <h2 class="grow">${esc(r.name)}</h2>
+        <h2 class="grow">${esc(r.name)}${week ? ` <small class="muted">· semana ${week} de ${r.progression.length}</small>` : ''}</h2>
         ${r.archived
           ? `<button class="btn btn-small" data-act="copy">Copiar</button>
              <button class="btn btn-small" data-act="restore">Restaurar</button>
@@ -74,7 +120,9 @@ function routineCard(r) {
       ${items.length ? `<ol class="routine-items">
         ${items.map((it) => {
           const ex = state.exercises.get(it.exerciseId);
-          return `<li><span>${esc(ex?.name || '(ejercicio borrado)')}</span><span class="muted">${esc(it.target || '')}</span></li>`;
+          const prog = hasProgression(r) ? `P${it.prog || 1}` + (week ? ' · ' : '') : '';
+          const target = hasProgression(r) ? (week ? itemTarget(r, it, week) : '') : it.target || '';
+          return `<li><span>${esc(ex?.name || '(ejercicio borrado)')}</span><span class="muted">${esc(prog + target)}</span></li>`;
         }).join('')}
       </ol>` : '<p class="muted">Sin ejercicios.</p>'}
     </section>`;
@@ -94,7 +142,9 @@ function openRoutineEditor(routine) {
             <div class="routine-edit-row" data-i="${i}">
               <div class="grow">
                 <div>${esc(state.exercises.get(it.exerciseId)?.name || '(ejercicio borrado)')}</div>
-                <input class="input target" data-target value="${esc(it.target || '')}" placeholder="Series x reps (ej. 3x10)">
+                ${hasProgression(routine)
+                  ? `<select class="input target" data-prog>${progOptions(progCount(routine), it.prog || 1)}</select>`
+                  : `<input class="input target" data-target value="${esc(it.target || '')}" placeholder="Series x reps (ej. 3x10)">`}
               </div>
               <div class="row-btns">
                 <button class="icon-btn small" data-up ${i === 0 ? 'disabled' : ''} aria-label="Subir">↑</button>
@@ -117,6 +167,9 @@ function openRoutineEditor(routine) {
         routine.items[e.target.closest('[data-i]').dataset.i].target = e.target.value;
       }
     });
+    body.addEventListener('change', (e) => {
+      if (e.target.matches('[data-prog]')) routine.items[e.target.closest('[data-i]').dataset.i].prog = Number(e.target.value);
+    });
     body.addEventListener('click', (e) => {
       const btn = e.target.closest('button');
       if (!btn) return;
@@ -128,7 +181,7 @@ function openRoutineEditor(routine) {
       else if (btn.hasAttribute('data-del')) { items.splice(i, 1); draw(); }
       else if (btn.hasAttribute('data-add')) {
         openExercisePicker((ex) => {
-          items.push({ exerciseId: ex.id, target: '' });
+          items.push({ exerciseId: ex.id, target: '', ...(hasProgression(routine) ? { prog: 1 } : {}) });
           draw();
           const targets = body.querySelectorAll('[data-target]');
           targets[targets.length - 1]?.focus();
@@ -141,7 +194,11 @@ function openRoutineEditor(routine) {
           ...routine,
           name,
           archived: Boolean(routine.archived),
-          items: routine.items.map((it) => ({ exerciseId: it.exerciseId, target: (it.target || '').trim() })),
+          items: routine.items.map((it) => ({
+            exerciseId: it.exerciseId,
+            target: (it.target || '').trim(),
+            ...(hasProgression(routine) ? { prog: it.prog || 1 } : {}),
+          })),
         });
         close();
       }
@@ -185,6 +242,12 @@ function openImportReview(plan) {
   openModal('Revisá el plan', (body, close) => {
     const draw = () => {
       body.innerHTML = `
+        ${plan.progression.length ? `
+          <section class="card">
+            <h2>Progresión semanal</h2>
+            <p class="muted">Filas = semanas, columnas = progresiones. Corregí lo que haya leído mal.</p>
+            ${progressionTable(plan.progression, true)}
+          </section>` : ''}
         <p class="muted">Tocá un ejercicio para cambiarlo por otro. Los marcados como <span class="tag-new">nuevo</span> se crean al guardar.
           ${active.length ? 'El plan actual se archiva (tus registros no se borran).' : ''}</p>
         ${plan.routines.map((r, ri) => `
@@ -196,7 +259,9 @@ function openImportReview(plan) {
                   <div class="grow">
                     <button class="link-btn" data-change>${itemLabel(it)}</button>
                     ${it.written ? `<small class="muted block">En la hoja: ${esc(it.written)}</small>` : ''}
-                    <input class="input target" data-target value="${esc(it.target)}" placeholder="Series x reps (ej. 3x10)">
+                    ${plan.progression.length
+                      ? `<select class="input target" data-prog>${progOptions(progCount(plan), it.prog)}</select>`
+                      : `<input class="input target" data-target value="${esc(it.target)}" placeholder="Series x reps (ej. 3x10)">`}
                   </div>
                   <div class="row-btns">
                     <button class="icon-btn small" data-del aria-label="Quitar">✕</button>
@@ -217,10 +282,21 @@ function openImportReview(plan) {
       return { r, i: row ? Number(row.dataset.i) : -1 };
     };
     body.addEventListener('input', (e) => {
+      if (e.target.matches('[data-cell]')) {
+        const [w, j] = e.target.dataset.cell.split(',').map(Number);
+        plan.progression[w].targets[j] = e.target.value;
+        return;
+      }
       if (e.target.matches('[data-rname]')) locate(e.target).r.name = e.target.value;
       if (e.target.matches('[data-target]')) {
         const { r, i } = locate(e.target);
         r.items[i].target = e.target.value;
+      }
+    });
+    body.addEventListener('change', (e) => {
+      if (e.target.matches('[data-prog]')) {
+        const { r, i } = locate(e.target);
+        r.items[i].prog = Number(e.target.value);
       }
     });
     body.addEventListener('click', (e) => {
@@ -256,12 +332,20 @@ function saveImported(plan, active) {
     if (!byName.has(key)) byName.set(key, save('exercises', { ...it.newExercise }));
     return byName.get(key);
   };
+  const progression = plan.progression
+    .map((w) => ({ targets: w.targets.map((t) => t.trim()) }))
+    .filter((w) => w.targets.some(Boolean));
   const now = Date.now();
   const toSave = routines.map((r, k) => ({
     name: r.name.trim(),
     createdAt: new Date(now + k).toISOString(), // mantiene el orden Día A, Día B…
     archived: false,
-    items: r.items.map((it) => ({ exerciseId: idFor(it), target: it.target.trim() })),
+    items: r.items.map((it) => ({
+      exerciseId: idFor(it),
+      target: it.target.trim(),
+      ...(progression.length ? { prog: it.prog || 1 } : {}),
+    })),
+    ...(progression.length ? { progression } : {}),
   }));
   active.forEach((r) => save('routines', { ...r, archived: true }));
   toSave.forEach((r) => save('routines', r));
