@@ -10,7 +10,7 @@ export function groupsLabel(ex) {
   return ex.primary + sec;
 }
 
-function normalize(s) {
+export function normalize(s) {
   return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 }
 

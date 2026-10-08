@@ -251,6 +251,15 @@ label .input { margin-top: 4px; }
 }
 .routine-edit-row .target { margin-top: 6px; min-height: 40px; }
 .row-btns { display: flex; }
+.block { display: block; }
+.link-btn {
+  background: none; border: none; padding: 0; text-align: left; width: 100%;
+  font: inherit; color: var(--text-primary); cursor: pointer;
+}
+.tag-new {
+  display: inline-block; padding: 1px 6px; border-radius: 6px; font-size: .75rem;
+  color: var(--warning); border: 1px solid var(--warning);
+}
 .archived { margin-top: 20px; }
 .archived summary { cursor: pointer; color: var(--text-secondary); padding: 10px 0; }
 
