@@ -1,4 +1,5 @@
 // Pestaña "Entrenar": elegir rutina, cargar series (kg y reps) y ver lo que hiciste la última vez.
+// El entrenamiento se recorre por páginas: un ejercicio por página (la zona media va junta) y al final el resumen.
 // #entrenar           -> entrenamiento en curso o inicio
 // #entrenar/<id>      -> editar un entrenamiento guardado (desde el historial)
 
@@ -8,10 +9,12 @@ import { save, remove } from '../db.js';
 import { esc, today, fmtDate, parseNum, openModal, confirmDialog, toast } from '../ui.js';
 import { lastTime, fmtSets, validSets } from '../stats.js';
 import { openExercisePicker } from './exercises.js';
-import { currentWeek, itemTarget } from '../progression.js';
+import { FIXED, hasProgression, itemProg, currentWeek, itemTarget } from '../progression.js';
 
 let editing = null; // { session, fromHistory }
 let saveTimer = null;
+let page = 0;           // página visible del editor
+let pageSession = null; // sesión a la que corresponde `page` (al cambiar de sesión vuelve a la primera)
 const STALE_HOURS = 6; // un entrenamiento abierto más tiempo que esto se cierra solo
 const closed = new Set(); // ids ya cerrados (hasta que llegue la actualización de Firestore)
 
@@ -140,7 +143,11 @@ function start(container, routine) {
   const week = currentWeek(routine);
   const entries = (routine?.items || [])
     .filter((it) => state.exercises.has(it.exerciseId))
-    .map((it) => newEntry(state.exercises.get(it.exerciseId), itemTarget(routine, it, week)));
+    .map((it) => ({
+      ...newEntry(state.exercises.get(it.exerciseId), itemTarget(routine, it, week)),
+      // Con objetivo fijo dentro de un plan con progresión = zona media: va en la misma página que los otros.
+      circuit: hasProgression(routine) && itemProg(it) === FIXED,
+    }));
   const session = {
     date: today(),
     routineId: routine?.id || null,
@@ -184,9 +191,34 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') flush();
 });
 
-function renderEditor(container) {
+// Zona media: los ejercicios seguidos de zona media van en una sola página.
+// Las sesiones viejas o los ejercicios agregados a mano no tienen la marca: cuenta el grupo Abdominales.
+function isCore(en) {
+  return en.circuit ?? (state.exercises.get(en.exerciseId)?.primary === 'Abdominales');
+}
+
+function buildPages(entries) {
+  const pages = [];
+  entries.forEach((en, i) => {
+    const last = pages[pages.length - 1];
+    if (isCore(en) && last?.core) last.idx.push(i);
+    else pages.push({ core: isCore(en), idx: [i] });
+  });
+  return pages;
+}
+
+const entryDone = (en) => en.sets.length > 0 && validSets(en).length === en.sets.length;
+
+// `opts.entry`: muestra la página de ese ejercicio (después de agregarlo, moverlo o cambiarlo).
+function renderEditor(container, opts = {}) {
   const s = editing.session;
   const hist = editing.fromHistory;
+  const pages = buildPages(s.entries);
+  const pageOf = (i) => pages.findIndex((p) => p.idx.includes(i));
+  if (pageSession !== s.id) { page = 0; pageSession = s.id; }
+  if (opts.entry != null && pageOf(opts.entry) >= 0) page = pageOf(opts.entry);
+  page = Math.min(Math.max(page, 0), pages.length); // pages.length = página del resumen
+
   container.innerHTML = `
     <div class="session-head">
       ${hist ? '<button class="icon-btn" data-back aria-label="Volver">←</button>' : ''}
@@ -196,17 +228,84 @@ function renderEditor(container) {
       </div>
       ${!hist ? '<span class="badge live">En curso</span>' : ''}
     </div>
-    <div class="entries">
-      ${s.entries.length ? s.entries.map((en, i) => entryCard(en, i, s.id)).join('')
-        : '<p class="muted center">Agregá el primer ejercicio.</p>'}
+    <div class="steps">
+      ${pages.map((p, k) => `<button class="step ${p.idx.every((i) => entryDone(s.entries[i])) ? 'done' : ''}" data-go="${k}"
+        aria-label="${esc(p.core ? 'Zona media' : s.entries[p.idx[0]].name)}"></button>`).join('')}
+      <button class="step step-end" data-go="${pages.length}" aria-label="Resumen"></button>
     </div>
-    <button class="btn btn-block" data-add>+ Agregar ejercicio</button>
-    <div class="session-actions">
-      ${hist
-        ? '<button class="btn btn-primary btn-block" data-done>Guardar</button>'
-        : '<button class="btn btn-primary btn-block btn-lg" data-finish>Terminar entrenamiento</button>'}
-      <button class="btn btn-ghost-danger btn-block" data-discard>${hist ? 'Borrar entrenamiento' : 'Descartar entrenamiento'}</button>
+    <div class="pager">
+      ${pages.map((p, k) => `
+        <div class="pager-page" data-page="${k}">
+          ${p.core ? `<p class="page-kicker">Circuito zona media · ${p.idx.length} ejercicio${p.idx.length === 1 ? '' : 's'}</p>` : ''}
+          ${p.idx.map((i) => entryCard(s.entries[i], i, s.id)).join('')}
+        </div>`).join('')}
+      <div class="pager-page" data-page="${pages.length}">
+        ${s.entries.length ? `
+          <section class="card list">
+            <h2 class="card-title">Resumen</h2>
+            ${s.entries.map((en, i) => `
+              <button class="list-item row" data-go="${pageOf(i)}">
+                <span>${esc(state.exercises.get(en.exerciseId)?.name || en.name)}</span>
+                <small class="${entryDone(en) ? 'good' : 'muted'}">${validSets(en).length}/${en.sets.length} series</small>
+              </button>`).join('')}
+          </section>` : '<p class="muted center">Agregá el primer ejercicio.</p>'}
+        <button class="btn btn-block" data-add>+ Agregar ejercicio</button>
+        <div class="session-actions">
+          ${hist
+            ? '<button class="btn btn-primary btn-block" data-done>Guardar</button>'
+            : '<button class="btn btn-primary btn-block btn-lg" data-finish>Terminar entrenamiento</button>'}
+          <button class="btn btn-ghost-danger btn-block" data-discard>${hist ? 'Borrar entrenamiento' : 'Descartar entrenamiento'}</button>
+        </div>
+      </div>
+    </div>
+    <div class="pager-nav">
+      <button class="btn" data-prev>← Anterior</button>
+      <span class="pager-count" data-count></span>
+      <button class="btn btn-primary" data-next></button>
     </div>`;
+
+  const pager = container.querySelector('.pager');
+  const pageEls = pager.querySelectorAll('.pager-page');
+  const steps = container.querySelectorAll('.step');
+  const prev = container.querySelector('[data-prev]');
+  const next = container.querySelector('[data-next]');
+  const count = container.querySelector('[data-count]');
+
+  const updateNav = () => {
+    steps.forEach((b, k) => b.classList.toggle('current', k === page));
+    prev.disabled = page === 0;
+    next.hidden = page === pages.length;
+    next.textContent = page === pages.length - 1 ? 'Resumen →' : 'Siguiente →';
+    count.textContent = page < pages.length ? `${page + 1} de ${pages.length}` : 'Resumen';
+    // El alto sigue a la página visible, así no queda espacio vacío debajo de las páginas cortas.
+    pager.style.height = pageEls[page].offsetHeight + 'px';
+  };
+  // Si bajaste en una página larga, al cambiar de página se vuelve al principio.
+  const showTop = () => {
+    const top = container.querySelector('.steps').getBoundingClientRect().top;
+    if (top < 0) window.scrollBy({ top: top - 8, behavior: 'smooth' });
+  };
+  const goTo = (k) => {
+    page = k;
+    pager.scrollTo({ left: k * pager.clientWidth, behavior: 'smooth' });
+    updateNav();
+    showTop();
+  };
+  pager.scrollLeft = page * pager.clientWidth;
+  updateNav();
+  pager.addEventListener('scroll', () => {
+    const k = Math.round(pager.scrollLeft / pager.clientWidth);
+    if (k === page || k < 0 || k > pages.length) return;
+    page = k;
+    updateNav();
+    showTop();
+  }, { passive: true });
+  prev.onclick = () => goTo(page - 1);
+  next.onclick = () => goTo(page + 1);
+  container.querySelector('.steps').onclick = (e) => {
+    const b = e.target.closest('[data-go]');
+    if (b) goTo(Number(b.dataset.go));
+  };
 
   container.querySelector('[data-date]').onchange = (e) => {
     if (!e.target.value) return;
@@ -217,9 +316,7 @@ function renderEditor(container) {
   container.querySelector('[data-add]').onclick = () => openExercisePicker((ex) => {
     s.entries.push(newEntry(ex));
     scheduleSave();
-    renderEditor(container);
-    const cards = container.querySelectorAll('.entry');
-    cards[cards.length - 1]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    renderEditor(container, { entry: s.entries.length - 1 });
   });
   container.querySelector('[data-finish]')?.addEventListener('click', () => finish(container));
   container.querySelector('[data-done]')?.addEventListener('click', () => {
@@ -239,17 +336,20 @@ function renderEditor(container) {
     else renderHome(container);
   };
 
-  container.querySelector('.entries').addEventListener('input', (e) => {
+  pager.addEventListener('input', (e) => {
     const inp = e.target.closest('[data-f]');
     if (!inp) return;
     const { i, j, f } = inp.dataset;
     const val = parseNum(inp.value);
     s.entries[i].sets[j][f] = f === 'r' && val !== null ? Math.round(val) : val;
     scheduleSave();
+    const k = pageOf(Number(i));
+    steps[k].classList.toggle('done', pages[k].idx.every((x) => entryDone(s.entries[x])));
   });
-  container.querySelector('.entries').addEventListener('click', (e) => {
+  pager.addEventListener('click', (e) => {
     const btn = e.target.closest('button');
     if (!btn) return;
+    if (btn.dataset.go) { goTo(Number(btn.dataset.go)); return; }
     const card = btn.closest('.entry');
     const i = Number(card?.dataset.i);
     if (btn.hasAttribute('data-add-set')) {
@@ -258,7 +358,7 @@ function renderEditor(container) {
       scheduleSave();
       renderEditor(container);
       const rows = container.querySelectorAll(`.entry[data-i="${i}"] [data-f="r"]`);
-      rows[rows.length - 1]?.focus();
+      rows[rows.length - 1]?.focus({ preventScroll: true });
     } else if (btn.hasAttribute('data-del-set')) {
       s.entries[i].sets.splice(Number(btn.dataset.j), 1);
       scheduleSave();
@@ -317,20 +417,21 @@ function entryMenu(container, i) {
         <button class="btn btn-block" data-swap>Cambiar por otro ejercicio</button>
         <button class="btn btn-ghost-danger btn-block" data-remove>Quitar ejercicio</button>
       </div>`;
-    const done = () => { close(); scheduleSave(); renderEditor(container); };
+    const done = (entry = i) => { close(); scheduleSave(); renderEditor(container, { entry }); };
     body.querySelector('[data-target]').onchange = (e) => { en.target = e.target.value.trim(); scheduleSave(); };
-    body.querySelector('[data-up]').onclick = () => { s.entries.splice(i - 1, 0, s.entries.splice(i, 1)[0]); done(); };
-    body.querySelector('[data-down]').onclick = () => { s.entries.splice(i + 1, 0, s.entries.splice(i, 1)[0]); done(); };
+    body.querySelector('[data-up]').onclick = () => { s.entries.splice(i - 1, 0, s.entries.splice(i, 1)[0]); done(i - 1); };
+    body.querySelector('[data-down]').onclick = () => { s.entries.splice(i + 1, 0, s.entries.splice(i, 1)[0]); done(i + 1); };
     body.querySelector('[data-swap]').onclick = () => {
       close();
       openExercisePicker((ex) => {
         en.exerciseId = ex.id;
         en.name = ex.name;
+        delete en.circuit; // la zona media pasa a depender del grupo del ejercicio nuevo
         scheduleSave();
-        renderEditor(container);
+        renderEditor(container, { entry: i });
       });
     };
-    body.querySelector('[data-remove]').onclick = () => { s.entries.splice(i, 1); done(); };
+    body.querySelector('[data-remove]').onclick = () => { s.entries.splice(i, 1); done(Math.min(i, s.entries.length - 1)); };
   }, () => renderEditor(container));
 }
 

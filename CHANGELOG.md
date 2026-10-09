@@ -120,3 +120,22 @@ Está explicado en el paso 1b del [README](README.md).
 - Las rutinas que ya cargaste con la foto anterior tienen la zona media con progresión 1: entrá a *Editar* en cada día y pasalos a **Fijo** con sus reps,
   o volvé a cargar la foto eligiendo *Actualizar Día N* (mantiene la semana en la que vas).
 
+## v5 — Entrenar por páginas (2026-10-09)
+
+### Qué cambió
+- **Un ejercicio por página**: el entrenamiento ya no es una lista larga. Cada ejercicio ocupa su propia página
+  y se pasa **deslizando** de costado o con los botones **← Anterior / Siguiente →** (fijos abajo, arriba de la barra de pestañas).
+- **Zona media junta**: los ejercicios seguidos de zona media (los que tienen objetivo *Fijo* en el plan, o del grupo Abdominales
+  si se agregaron a mano) van todos en una misma página, *Circuito zona media*.
+- **Barra de progreso arriba**: un segmento por página; se pone verde cuando todas sus series tienen reps, y tocándolo vas a esa página.
+- **Página final de resumen**: lista de ejercicios con las series hechas (tocás uno para volver), *+ Agregar ejercicio*,
+  *Terminar entrenamiento* y *Descartar*. Lo mismo al editar un entrenamiento del historial (*Guardar* / *Borrar*).
+- La app recuerda en qué página estabas si cambiás de pestaña y volvés. Al agregar, mover o cambiar un ejercicio, se muestra su página.
+
+### Cambios técnicos
+| Archivo | Cambio |
+|---|---|
+| [`js/views/train.js`](js/views/train.js) | `renderEditor` arma las páginas (`buildPages`, `isCore`) en un carrusel con *scroll-snap*. Cada ejercicio de una rutina guarda `circuit` (zona media) al empezar. |
+| [`css/styles.css`](css/styles.css) | `.steps`, `.step`, `.pager`, `.pager-page`, `.page-kicker`, `.pager-nav`, `.pager-count`. |
+| [`sw.js`](sw.js) | Caché `gimnasio-v5`. |
+

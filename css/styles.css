@@ -239,6 +239,43 @@ label .input { margin-top: 4px; }
 .input.num { text-align: center; font-size: 1.15rem; font-weight: 600; min-height: 48px; }
 
 .session-actions { margin-top: 24px; }
+
+/* Entrenamiento por páginas: se pasa deslizando o con Anterior / Siguiente. */
+.steps { display: flex; gap: 4px; margin-bottom: 14px; }
+.step {
+  flex: 1; min-width: 0; height: 6px; padding: 0;
+  border: none; border-radius: 3px; background: var(--surface-2);
+  position: relative; cursor: pointer;
+}
+.step::after { content: ''; position: absolute; inset: -12px 0; } /* área para tocar más grande */
+.step.done { background: var(--good); }
+.step.current { background: var(--accent); }
+.step-end { flex: 0 0 18px; }
+.pager {
+  display: flex; align-items: flex-start;
+  overflow-x: auto; overflow-y: hidden;
+  scroll-snap-type: x mandatory; overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  margin: 0 -16px;
+}
+.pager::-webkit-scrollbar { display: none; }
+.pager-page {
+  flex: 0 0 100%; min-width: 0;
+  scroll-snap-align: start; scroll-snap-stop: always;
+  padding: 0 16px;
+}
+.page-kicker { font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); margin: 0 4px 8px; }
+.pager-nav {
+  position: sticky; bottom: calc(var(--nav-h) + 8px + env(safe-area-inset-bottom));
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 12px; padding: 8px;
+  background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .12);
+}
+.pager-nav .btn { flex: 1; }
+.pager-nav .btn[hidden] { display: none; }
+.pager-count { flex: 0 0 auto; min-width: 64px; text-align: center; font-size: .9rem; color: var(--text-muted); }
+small.good { color: var(--good); font-weight: 600; }
 .menu-list .btn { margin-top: 8px; }
 
 /* ---------- Plan ---------- */

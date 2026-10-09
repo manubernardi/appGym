@@ -49,7 +49,8 @@ Desde esta carpeta: `npx serve .` (o cualquier servidor estático) y abrí `http
   La semana se cuenta **por día**: si terminaste el Día 1 dos veces, la próxima vez que lo hagas es la semana 3, aunque el Día 2 siga en la semana 2.
   Al empezar el entrenamiento, los objetivos y la cantidad de series salen de esa semana. Pasada la última semana de la tabla, se repite la última.
   Cuando cambia el plan, *Empezar plan nuevo* archiva las rutinas viejas (los registros se mantienen).
-- **Entrenar**: elegís la rutina y anotás kg y reps de cada serie. Arriba de cada ejercicio ves lo que hiciste la última vez,
+- **Entrenar**: elegís la rutina y anotás kg y reps de cada serie. Cada ejercicio es una página que pasás deslizando o con *Anterior / Siguiente*
+  (los de zona media van juntos en una página); la barra de arriba muestra en verde los completos y al final está el resumen para terminar. Arriba de cada ejercicio ves lo que hiciste la última vez,
   y los campos vacíos muestran esos valores en gris como referencia. Se guarda solo mientras escribís.
   Si dejás un entrenamiento abierto sin terminarlo, a las 6 horas se cierra solo (se guarda si tiene series, se borra si está vacío).
 - **Progreso**:
