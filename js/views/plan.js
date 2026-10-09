@@ -4,9 +4,9 @@
 import { state } from '../store.js';
 import { save, remove } from '../db.js';
 import { esc, openModal, confirmDialog, toast } from '../ui.js';
-import { openExercisePicker, normalize } from './exercises.js';
+import { openExercisePicker, openExerciseForm, normalize } from './exercises.js';
 import { WEIGHT_TYPES } from '../data.js';
-import { hasProgression, progCount, currentWeek, itemTarget } from '../progression.js';
+import { FIXED, hasProgression, progCount, itemProg, currentWeek, itemTarget } from '../progression.js';
 
 export function render(container) {
   const active = state.routines.filter((r) => !r.archived);
@@ -66,8 +66,7 @@ export function render(container) {
 }
 
 function suggestName(active) {
-  const letter = String.fromCharCode(65 + active.length);
-  return active.length < 26 ? `Día ${letter}` : '';
+  return `Día ${active.length + 1}`;
 }
 
 // Tabla de progresión: filas = semanas, columnas = progresiones.
@@ -100,7 +99,15 @@ function progressionCard(progression) {
 
 function progOptions(n, selected) {
   return Array.from({ length: n }, (_, j) =>
-    `<option value="${j + 1}" ${selected === j + 1 ? 'selected' : ''}>Progresión ${j + 1}</option>`).join('');
+    `<option value="${j + 1}" ${selected === j + 1 ? 'selected' : ''}>Progresión ${j + 1}</option>`).join('')
+    + `<option value="${FIXED}" ${selected === FIXED ? 'selected' : ''}>Fijo (sus propias reps)</option>`;
+}
+
+// Selector de progresión del ejercicio; si es fijo, también su objetivo (ej. zona media "3x10").
+function progFields(n, it) {
+  const p = itemProg(it);
+  return `<select class="input target" data-prog>${progOptions(n, p)}</select>`
+    + (p === FIXED ? `<input class="input target" data-target value="${esc(it.target || '')}" placeholder="Series x reps (ej. 3x10)">` : '');
 }
 
 function routineCard(r) {
@@ -120,8 +127,9 @@ function routineCard(r) {
       ${items.length ? `<ol class="routine-items">
         ${items.map((it) => {
           const ex = state.exercises.get(it.exerciseId);
-          const prog = hasProgression(r) ? `P${it.prog || 1}` + (week ? ' · ' : '') : '';
-          const target = hasProgression(r) ? (week ? itemTarget(r, it, week) : '') : it.target || '';
+          const p = itemProg(it);
+          const prog = hasProgression(r) && p !== FIXED ? `P${p}` + (week ? ' · ' : '') : '';
+          const target = hasProgression(r) && !week && p !== FIXED ? '' : itemTarget(r, it, week);
           return `<li><span>${esc(ex?.name || '(ejercicio borrado)')}</span><span class="muted">${esc(prog + target)}</span></li>`;
         }).join('')}
       </ol>` : '<p class="muted">Sin ejercicios.</p>'}
@@ -143,7 +151,7 @@ function openRoutineEditor(routine) {
               <div class="grow">
                 <div>${esc(state.exercises.get(it.exerciseId)?.name || '(ejercicio borrado)')}</div>
                 ${hasProgression(routine)
-                  ? `<select class="input target" data-prog>${progOptions(progCount(routine), it.prog || 1)}</select>`
+                  ? progFields(progCount(routine), it)
                   : `<input class="input target" data-target value="${esc(it.target || '')}" placeholder="Series x reps (ej. 3x10)">`}
               </div>
               <div class="row-btns">
@@ -168,7 +176,10 @@ function openRoutineEditor(routine) {
       }
     });
     body.addEventListener('change', (e) => {
-      if (e.target.matches('[data-prog]')) routine.items[e.target.closest('[data-i]').dataset.i].prog = Number(e.target.value);
+      if (e.target.matches('[data-prog]')) {
+        routine.items[e.target.closest('[data-i]').dataset.i].prog = Number(e.target.value);
+        draw();
+      }
     });
     body.addEventListener('click', (e) => {
       const btn = e.target.closest('button');
@@ -197,7 +208,7 @@ function openRoutineEditor(routine) {
           items: routine.items.map((it) => ({
             exerciseId: it.exerciseId,
             target: (it.target || '').trim(),
-            ...(hasProgression(routine) ? { prog: it.prog || 1 } : {}),
+            ...(hasProgression(routine) ? { prog: itemProg(it) } : {}),
           })),
         });
         close();
@@ -232,9 +243,20 @@ async function importFromPhoto(file) {
 function itemLabel(it) {
   if (it.exerciseId) return esc(state.exercises.get(it.exerciseId)?.name || '(ejercicio borrado)');
   const n = it.newExercise;
-  const groups = [n.primary || 'sin grupo', ...n.secondary].join(', ');
+  const groups = n.primary
+    ? esc([n.primary, ...n.secondary].join(', '))
+    : '<span class="missing">sin grupo muscular</span>';
   return `${esc(n.name)} <span class="tag-new">nuevo</span>
-    <small class="muted block">${esc(WEIGHT_TYPES[n.type].short)} · ${esc(groups)}</small>`;
+    <small class="muted block">${esc(WEIGHT_TYPES[n.type].short)} · ${groups}</small>`;
+}
+
+// Editar el ejercicio nuevo antes de guardar (nombre, tipo, grupos). No se crea hasta guardar el plan.
+function editNewExercise(it, onDone) {
+  openExerciseForm(structuredClone(it.newExercise), (data) => {
+    if (data.id) { it.exerciseId = data.id; it.newExercise = null; }
+    else it.newExercise = data;
+    onDone();
+  }, { draft: true });
 }
 
 // Cada día de la foto se carga como rutina nueva, actualiza una rutina del plan actual
@@ -277,7 +299,9 @@ function openImportReview(plan) {
             ${progressionTable(plan.progression, true)}
           </section>` : ''}
         <p class="muted">${active.length ? 'Elegí cómo cargar cada día: como rutina nueva o actualizando una que ya tenés (mantiene la semana en la que vas). ' : ''}
-          Tocá un ejercicio para cambiarlo por otro. Los marcados como <span class="tag-new">nuevo</span> se crean al guardar.</p>
+          Tocá un ejercicio para cambiarlo por otro. Los marcados como <span class="tag-new">nuevo</span> se crean al guardar:
+          revisá su nombre y grupos con <em>Editar nombre y grupos</em>.
+          ${plan.progression.length ? 'Los ejercicios en <em>Fijo</em> (ej. zona media) no siguen la tabla: usan sus propias series x reps.' : ''}</p>
         ${plan.routines.map((r, ri) => `
           <section class="card ${r.dest === 'skip' ? 'excluded' : ''}" data-ri="${ri}">
             <input class="input" data-rname value="${esc(r.name)}" placeholder="Nombre de la rutina">
@@ -290,8 +314,9 @@ function openImportReview(plan) {
                   <div class="grow">
                     <button class="link-btn" data-change>${itemLabel(it)}</button>
                     ${it.written ? `<small class="muted block">En la hoja: ${esc(it.written)}</small>` : ''}
+                    ${it.newExercise ? '<button class="btn btn-small btn-inline" data-edit-new>Editar nombre y grupos</button>' : ''}
                     ${plan.progression.length
-                      ? `<select class="input target" data-prog>${progOptions(progCount(plan), it.prog)}</select>`
+                      ? progFields(progCount(plan), it)
                       : `<input class="input target" data-target value="${esc(it.target)}" placeholder="Series x reps (ej. 3x10)">`}
                   </div>
                   <div class="row-btns">
@@ -329,6 +354,7 @@ function openImportReview(plan) {
       if (e.target.matches('[data-prog]')) {
         const { r, i } = locate(e.target);
         r.items[i].prog = Number(e.target.value);
+        draw();
       }
       if (e.target.matches('[data-dest]')) {
         const { r } = locate(e.target);
@@ -353,9 +379,15 @@ function openImportReview(plan) {
       const btn = e.target.closest('button');
       if (!btn) return;
       if (btn.hasAttribute('data-cancel')) { close(); return; }
-      if (btn.hasAttribute('data-save')) { if (saveImported(plan, active)) close(); return; }
+      if (btn.hasAttribute('data-save')) {
+        const result = saveImported(plan, active);
+        if (result === true) close();
+        else if (result) editNewExercise(result, draw); // ejercicio nuevo sin grupo: se abre para completarlo
+        return;
+      }
       const { r, i } = locate(btn);
       if (btn.hasAttribute('data-del')) { r.items.splice(i, 1); draw(); }
+      else if (btn.hasAttribute('data-edit-new')) editNewExercise(r.items[i], draw);
       else if (btn.hasAttribute('data-change')) {
         openExercisePicker((ex) => {
           r.items[i].exerciseId = ex.id;
@@ -367,15 +399,17 @@ function openImportReview(plan) {
   });
 }
 
+// Devuelve true si se guardó, false si no, o el ejercicio nuevo al que le falta el grupo muscular.
 function saveImported(plan, active) {
   const routines = plan.routines.filter((r) => r.dest !== 'skip' && r.items.length);
   if (!routines.length) { toast('Elegí al menos un día con ejercicios.'); return false; }
   if (routines.some((r) => !r.name.trim())) { toast('Poné un nombre a cada rutina.'); return false; }
   const dests = routines.map((r) => r.dest).filter((d) => d !== 'new');
   if (new Set(dests).size !== dests.length) { toast('Dos días de la foto actualizan la misma rutina.'); return false; }
-  if (routines.some((r) => r.items.some((it) => it.newExercise && !it.newExercise.primary))) {
-    toast('Hay un ejercicio nuevo sin grupo: tocalo y elegí uno de la lista.');
-    return false;
+  const noGroup = routines.flatMap((r) => r.items).find((it) => it.newExercise && !it.newExercise.primary);
+  if (noGroup) {
+    toast(`Elegí el grupo muscular de "${noGroup.newExercise.name}".`);
+    return noGroup;
   }
   // Ejercicios nuevos: si ya existe uno con el mismo nombre se usa ese; si se repite en varias rutinas, se crea una vez.
   const byName = new Map([...state.exercises.values()].map((e) => [normalize(e.name), e.id]));
@@ -398,8 +432,8 @@ function saveImported(plan, active) {
   routines.forEach((r, k) => {
     const items = r.items.map((it) => ({
       exerciseId: idFor(it),
-      target: it.target.trim(),
-      ...(progression.length ? { prog: it.prog || 1 } : {}),
+      target: (it.target || '').trim(),
+      ...(progression.length ? { prog: itemProg(it) } : {}),
     }));
     const existing = active.find((a) => a.id === r.dest);
     if (existing) {
@@ -408,7 +442,7 @@ function saveImported(plan, active) {
     } else {
       save('routines', withTable({
         name: r.name.trim(),
-        createdAt: new Date(now + k).toISOString(), // mantiene el orden Día A, Día B…
+        createdAt: new Date(now + k).toISOString(), // mismo orden que la hoja si los nombres no tienen número
         archived: false,
         items,
       }));

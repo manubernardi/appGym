@@ -12,6 +12,8 @@ import { currentWeek, itemTarget } from '../progression.js';
 
 let editing = null; // { session, fromHistory }
 let saveTimer = null;
+const STALE_HOURS = 6; // un entrenamiento abierto más tiempo que esto se cierra solo
+const closed = new Set(); // ids ya cerrados (hasta que llegue la actualización de Firestore)
 
 // "3x10", "4 X 8-12" -> 3 / 4. Si no se entiende, null.
 export function parseSeries(target) {
@@ -20,7 +22,30 @@ export function parseSeries(target) {
 }
 
 function activeSession() {
-  return state.sessions.find((s) => !s.finished);
+  closeStale();
+  return state.sessions.find((s) => !s.finished && !closed.has(s.id));
+}
+
+// Un entrenamiento que quedó abierto (empezaste una rutina y no la terminaste ni la descartaste)
+// hacía que la app abriera siempre en "En curso". Pasadas unas horas se cierra solo:
+// si tiene series se guarda como terminado, y si está vacío se borra.
+function closeStale() {
+  const limit = Date.now() - STALE_HOURS * 3600e3;
+  state.sessions
+    .filter((s) => !s.finished && !closed.has(s.id) && Date.parse(s.createdAt || s.date) < limit)
+    .forEach((old) => {
+      closed.add(old.id);
+      const mine = editing?.session.id === old.id;
+      const s = structuredClone(mine ? editing.session : old);
+      if (mine) { clearTimeout(saveTimer); saveTimer = null; editing = null; }
+      cleanup(s);
+      if (s.entries.length) {
+        save('sessions', { ...s, finished: true });
+        toast(`Se guardó el entrenamiento del ${fmtDate(s.date)} que había quedado abierto.`);
+      } else {
+        remove('sessions', s.id);
+      }
+    });
 }
 
 export function render(container, arg) {

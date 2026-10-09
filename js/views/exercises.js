@@ -63,7 +63,8 @@ export function openExercisePicker(onPick) {
 }
 
 // Crear (ex sin id) o editar (ex con id). onSaved(ejercicio) al guardar.
-export function openExerciseForm(ex = {}, onSaved) {
+// Con `draft`, no guarda nada: devuelve los datos sin id (o el ejercicio existente si ya hay uno con ese nombre).
+export function openExerciseForm(ex = {}, onSaved, { draft = false } = {}) {
   const editing = Boolean(ex.id);
   openModal(editing ? 'Editar ejercicio' : 'Nuevo ejercicio', (body, close) => {
     body.innerHTML = `
@@ -107,6 +108,12 @@ export function openExerciseForm(ex = {}, onSaved) {
       if (!name || !primary) return;
       const dup = [...state.exercises.values()].find((x) =>
         x.id !== ex.id && normalize(x.name) === normalize(name));
+      if (dup && draft) {
+        toast(`Ya tenés "${dup.name}": se usa ese.`);
+        close();
+        onSaved?.(dup);
+        return;
+      }
       if (dup) {
         toast('Ya existe un ejercicio con ese nombre.');
         return;
@@ -118,6 +125,11 @@ export function openExerciseForm(ex = {}, onSaved) {
         primary,
         secondary: fd.getAll('secondary').filter((g) => g !== primary),
       };
+      if (draft) {
+        close();
+        onSaved?.(data);
+        return;
+      }
       const id = save('exercises', data);
       close();
       onSaved?.({ ...data, id });

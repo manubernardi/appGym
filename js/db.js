@@ -70,7 +70,9 @@ function listen(name) {
       docs.sort((a, b) => (b.date + (b.createdAt || '')).localeCompare(a.date + (a.createdAt || '')));
       state.sessions = docs;
     } else if (name === 'routines') {
-      docs.sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+      // Por nombre, con los números en orden (Día 1, Día 2… Día 10), sin importar cuál se cargó primero.
+      docs.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'es', { numeric: true, sensitivity: 'base' })
+        || (a.createdAt || '').localeCompare(b.createdAt || ''));
       state.routines = docs;
     } else {
       docs.sort((a, b) => a.date.localeCompare(b.date));

@@ -86,3 +86,37 @@ Está explicado en el paso 1b del [README](README.md).
 ### Para tener en cuenta
 - Google dice que `gemini-3.8-flash` va a estar disponible por poco tiempo. Si la lectura empieza a fallar con un error de modelo, actualizá `MODELS` en [`js/plan-import.js`](js/plan-import.js) con un modelo vigente ([lista de modelos de Firebase AI Logic](https://firebase.google.com/docs/ai-logic/models)).
 - Después de pasar a Firebase 12, conviene revisar que el login y la carga de datos sigan funcionando.
+
+## v4 — Zona media, ejercicios nuevos y orden de los días (2026-10-09)
+
+### Qué cambió
+- **Zona media con sus propias reps**: los ejercicios del *Circuito zona media* (ej. "Puente frontal c/ cambio de apoyo 3*10",
+  "Puente frontal en fitball 3*12\"") ya no siguen la tabla de progresión semanal: cada uno guarda las series x reps escritas al lado.
+  - En el plan y en la revisión de la foto, el selector de progresión tiene la opción **Fijo (sus propias reps)**, que muestra el campo de objetivo.
+  - Las instrucciones para Gemini explican los dos bloques de cada día (zona media y fuerza), que la columna *Pausas* no es una progresión
+    y que *Movilidad articular* / *Preventivos hombros* no son ejercicios de un día. Los días se llaman como en la hoja ("Día 1", "Día 2"…).
+- **Ejercicios nuevos sin grupo muscular**: en la revisión de la foto cada ejercicio nuevo tiene **Editar nombre y grupos**
+  (nombre, tipo de peso, grupo principal y secundarios). Si falta el grupo se marca en rojo y, al tocar *Guardar*, se abre el formulario para completarlo.
+  Si le ponés el nombre de un ejercicio que ya tenés, se usa ese. A Gemini se le pide que siempre complete el grupo (zona media → Abdominales).
+- **"En curso" al abrir la app**: tocar una rutina crea el entrenamiento al instante, y si no se terminaba ni se descartaba quedaba abierto para siempre.
+  Ahora un entrenamiento abierto hace más de **6 horas** se cierra solo: si tiene series se guarda como terminado (con un aviso), si está vacío se borra.
+- **Semana de cada día**: cuenta solo los entrenamientos **terminados** (antes uno abierto o abandonado también avanzaba la semana).
+- **Orden de los días**: las rutinas se ordenan por nombre con los números en orden (Día 1, Día 2… Día 10), sin importar cuál se cargó primero.
+  Las rutinas nuevas se sugieren como "Día N".
+
+### Cambios técnicos
+| Archivo | Cambio |
+|---|---|
+| [`js/progression.js`](js/progression.js) | `FIXED` (= `prog: 0`) e `itemProg()`: un ejercicio con `prog: 0` usa siempre su `target`. `currentWeek` cuenta solo sesiones `finished`. |
+| [`js/plan-import.js`](js/plan-import.js) | Prompt con el formato real (zona media / fuerza, pausas, encabezado). `target` se pide siempre que el ejercicio tenga reps propias; sin `(n)` y con reps propias queda `FIXED`. |
+| [`js/views/plan.js`](js/views/plan.js) | Opción *Fijo* en los selectores de progresión, botón *Editar nombre y grupos* y apertura automática del formulario si falta el grupo. |
+| [`js/views/exercises.js`](js/views/exercises.js) | `openExerciseForm(…, { draft: true })`: devuelve los datos sin guardar (o el ejercicio existente con ese nombre). |
+| [`js/views/train.js`](js/views/train.js) | `closeStale()`: cierra entrenamientos abiertos hace más de `STALE_HOURS`. |
+| [`js/db.js`](js/db.js) | Orden natural de rutinas por nombre (`localeCompare` con `numeric`). |
+| [`css/styles.css`](css/styles.css) | `.missing` y `.btn-inline`. |
+| [`sw.js`](sw.js) | Caché `gimnasio-v4`. |
+
+### Para tener en cuenta
+- Las rutinas que ya cargaste con la foto anterior tienen la zona media con progresión 1: entrá a *Editar* en cada día y pasalos a **Fijo** con sus reps,
+  o volvé a cargar la foto eligiendo *Actualizar Día N* (mantiene la semana en la que vas).
+
