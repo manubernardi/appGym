@@ -192,9 +192,10 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // Zona media: los ejercicios seguidos de zona media van en una sola página.
-// Las sesiones viejas o los ejercicios agregados a mano no tienen la marca: cuenta el grupo Abdominales.
+// Es zona media si en el plan tiene objetivo Fijo (marca `circuit`) o si su grupo principal es Abdominales
+// (así también se juntan los de rutinas cargadas antes de que existiera "Fijo").
 function isCore(en) {
-  return en.circuit ?? (state.exercises.get(en.exerciseId)?.primary === 'Abdominales');
+  return Boolean(en.circuit) || state.exercises.get(en.exerciseId)?.primary === 'Abdominales';
 }
 
 function buildPages(entries) {

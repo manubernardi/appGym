@@ -139,3 +139,10 @@ Está explicado en el paso 1b del [README](README.md).
 | [`css/styles.css`](css/styles.css) | `.steps`, `.step`, `.pager`, `.pager-page`, `.page-kicker`, `.pager-nav`, `.pager-count`. |
 | [`sw.js`](sw.js) | Caché `gimnasio-v5`. |
 
+
+## v6 — Zona media siempre junta (2026-10-09)
+
+- Los ejercicios de zona media salían en páginas separadas en las rutinas cargadas antes de v4: tenían progresión 1 en vez de *Fijo*,
+  y esa marca le ganaba al grupo muscular. Ahora un ejercicio es de zona media si en el plan es *Fijo* **o** si su grupo principal es Abdominales,
+  así que se juntan también en el entrenamiento que ya tengas abierto.
+- Archivos: [`js/views/train.js`](js/views/train.js) (`isCore`), [`sw.js`](sw.js) (caché `gimnasio-v6`).
