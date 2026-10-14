@@ -160,7 +160,7 @@ Está explicado en el paso 1b del [README](README.md).
 
 La zona media ahora tiene su propio color (naranja) en toda la app, así se distingue de un vistazo de los ejercicios principales.
 
-- **Plan**: los ejercicios de zona media seguidos van en un **bloque aparte** al final de la lista, con el título *Zona media · circuito de N*.
+- **Plan**: los ejercicios de zona media seguidos van en un **bloque aparte** (donde estén en la rutina, en general al final), con el título *Zona media · circuito de N*.
   Los ejercicios principales se numeran solos (1, 2, 3…) y los de zona media llevan un punto naranja. Debajo del nombre de la rutina dice, por ejemplo,
   *5 ejercicios + 3 de zona media*. En *Editar* y en la revisión del plan desde foto, esas filas aparecen marcadas con la etiqueta **Zona media**.
 - **Entrenar**:
