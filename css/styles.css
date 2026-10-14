@@ -279,9 +279,60 @@ small.good { color: var(--good); font-weight: 600; }
 .menu-list .btn { margin-top: 8px; }
 
 /* ---------- Plan ---------- */
-.routine-items { margin: 8px 0 0; padding-left: 22px; }
-.routine-items li { padding: 4px 0; }
-.routine-items li span:last-child { margin-left: 6px; font-size: .9rem; }
+.plan-head { margin-bottom: 12px; }
+.plan-head h1 { margin-bottom: 2px; }
+.plan-head p { margin: 0; font-size: .9rem; }
+.plan-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+.btn-subtle { background: transparent; color: var(--text-secondary); }
+
+.routine { padding: 0; overflow: hidden; }
+.routine-head { display: flex; align-items: center; gap: 6px; padding: 12px 10px 10px 14px; }
+.routine-head h2 { font-size: 1.15rem; }
+.routine-head small { font-size: .8rem; }
+.routine.is-archived .routine-head h2 { color: var(--text-secondary); }
+.empty-items { margin: 0; padding: 0 14px 14px; }
+
+.week-bar { padding: 0 14px 12px; }
+.week-bar-label { font-size: .8rem; color: var(--text-secondary); margin-bottom: 6px; }
+.week-bar-label strong { color: var(--text-primary); }
+.week-steps { display: flex; gap: 4px; }
+.week-steps span { flex: 1; height: 6px; border-radius: 3px; background: var(--surface-2); }
+.week-steps span.done { background: var(--good); }
+.week-steps span.current { background: var(--accent); }
+
+.routine-items { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--border); }
+.routine-items li {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; border-bottom: 1px solid var(--border);
+}
+.routine-items li:last-child { border-bottom: none; }
+.ex-num {
+  flex: none; width: 24px; height: 24px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--surface-2); color: var(--text-muted); font-size: .75rem; font-weight: 600;
+}
+.ex-name { flex: 1; min-width: 0; font-size: .95rem; }
+.prog-tag {
+  flex: none; font-size: .72rem; font-weight: 600; color: var(--text-muted);
+  padding: 2px 6px; border: 1px solid var(--border); border-radius: 6px;
+}
+.prog-tag.fixed { color: var(--series-2); border-color: var(--series-2); }
+.target-pill {
+  flex: none; min-width: 52px; text-align: center;
+  padding: 4px 10px; border-radius: 999px;
+  background: var(--surface-2); color: var(--text-primary);
+  font-size: .88rem; font-weight: 600; font-variant-numeric: tabular-nums;
+}
+
+.prog-card summary { display: flex; align-items: center; gap: 8px; list-style: none; cursor: pointer; }
+.prog-card summary::-webkit-details-marker { display: none; }
+.prog-card summary small { display: block; font-size: .8rem; }
+.chevron { font-size: 1.4rem; line-height: 1; color: var(--text-muted); transition: transform .2s; }
+.prog-card[open] .chevron { transform: rotate(90deg); }
+.prog-card .note { margin: 10px 0 8px; }
+.prog-table th, .prog-table td { text-align: center; }
+.prog-table thead th { font-size: .75rem; text-transform: uppercase; letter-spacing: .03em; color: var(--text-muted); }
+.prog-table tbody th { color: var(--text-muted); }
 .routine-edit-row {
   display: flex; gap: 8px; align-items: center;
   padding: 10px 0; border-bottom: 1px solid var(--border);
@@ -306,6 +357,7 @@ small.good { color: var(--good); font-weight: 600; }
 .missing { color: var(--danger); font-weight: 600; }
 .btn-inline { margin-top: 6px; }
 .archived { margin-top: 20px; }
+.archived .routine { margin-top: 10px; }
 .archived summary { cursor: pointer; color: var(--text-secondary); padding: 10px 0; }
 
 /* ---------- Ejercicios ---------- */

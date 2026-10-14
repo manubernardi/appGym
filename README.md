@@ -40,7 +40,7 @@ Desde esta carpeta: `npx serve .` (o cualquier servidor estático) y abrí `http
 
 ## Cómo se usa
 - **Plan**: cargás las rutinas del mes (Día 1, Día 2…, siempre ordenadas por número) con cada ejercicio y su objetivo (`3x10`).
-  Con **📷 Cargar plan desde foto** le sacás una foto a la hoja: Gemini arma las rutinas, asocia cada ejercicio
+  Con **📷 Desde foto** le sacás una foto a la hoja: Gemini arma las rutinas, asocia cada ejercicio
   con uno tuyo aunque esté escrito distinto ("press banco barra" → "Press banca plano") y propone crear los que no tenés.
   Revisás, corregís lo que haga falta y elegís cómo cargar cada día: como rutina nueva, *actualizando* una que ya tenés (mantiene la semana en la que vas) o no cargarlo. Las rutinas actuales que no se actualizan se archivan o se dejan, según elijas.
 - **Progresión semanal**: si la hoja trae la tabla *Progresión semanal* (columnas = progresión 1, 2, 3…; filas = semanas),

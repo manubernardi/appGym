@@ -146,3 +146,12 @@ Está explicado en el paso 1b del [README](README.md).
   y esa marca le ganaba al grupo muscular. Ahora un ejercicio es de zona media si en el plan es *Fijo* **o** si su grupo principal es Abdominales,
   así que se juntan también en el entrenamiento que ya tengas abierto.
 - Archivos: [`js/views/train.js`](js/views/train.js) (`isCore`), [`sw.js`](sw.js) (caché `gimnasio-v6`).
+
+## v7 — Pestaña Plan rediseñada (2026-10-14)
+
+- **Arriba**: título con un resumen (cantidad de rutinas y semanas de la progresión) y los botones **📷 Desde foto** y **+ Nueva rutina** lado a lado.
+- **Tarjeta de cada rutina**: nombre con la cantidad de ejercicios, una **barra de semanas** (verde las hechas, azul la que toca)
+  y la lista de ejercicios numerada, con la progresión (**P1**, **P2**… o **Fijo**) y el objetivo de esta semana en una pastilla a la derecha.
+- **Progresión semanal**: pasó abajo de las rutinas y se despliega al tocarla, para que no ocupe toda la pantalla.
+- *Empezar plan nuevo* quedó como botón discreto al final.
+- Archivos: [`js/views/plan.js`](js/views/plan.js) (`routineCard`, `weekBar`, `progressionCard`), [`css/styles.css`](css/styles.css), [`README.md`](README.md), [`sw.js`](sw.js) (caché `gimnasio-v7`).

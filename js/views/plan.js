@@ -11,15 +11,27 @@ import { FIXED, hasProgression, progCount, itemProg, currentWeek, itemTarget } f
 export function render(container) {
   const active = state.routines.filter((r) => !r.archived);
   const archived = state.routines.filter((r) => r.archived);
+  const prog = active.find(hasProgression)?.progression;
+  const summary = active.length
+    ? `${active.length} rutina${active.length === 1 ? '' : 's'}${prog ? ` · progresión de ${prog.length} semana${prog.length === 1 ? '' : 's'}` : ''}`
+    : '';
   container.innerHTML = `
-    <h1>Plan del mes</h1>
-    ${active.length ? '' : '<p class="muted">Cargá las rutinas de tu plan actual (por ejemplo "Día A", "Día B"), o sacale una foto a la hoja.</p>'}
-    <button class="btn btn-block" data-photo>📷 Cargar plan desde foto</button>
+    <div class="plan-head">
+      <h1>Plan del mes</h1>
+      ${summary ? `<p class="muted">${summary}</p>` : ''}
+    </div>
+    ${active.length ? '' : `
+      <section class="card empty">
+        <p>Cargá las rutinas de tu plan actual (por ejemplo "Día 1", "Día 2"), o sacale una foto a la hoja.</p>
+      </section>`}
+    <div class="plan-actions">
+      <button class="btn" data-photo>📷 Desde foto</button>
+      <button class="btn btn-primary" data-new>+ Nueva rutina</button>
+    </div>
     <input type="file" accept="image/*" data-photo-input hidden>
-    ${progressionCard(active.find(hasProgression)?.progression)}
     ${active.map(routineCard).join('')}
-    <button class="btn btn-primary btn-block" data-new>+ Nueva rutina</button>
-    ${active.length ? '<button class="btn btn-block" data-archive-all>Empezar plan nuevo (archivar el actual)</button>' : ''}
+    ${progressionCard(prog)}
+    ${active.length ? '<button class="btn btn-block btn-subtle" data-archive-all>Empezar plan nuevo (archivar el actual)</button>' : ''}
     ${archived.length ? `
       <details class="archived">
         <summary>Rutinas archivadas (${archived.length})</summary>
@@ -90,11 +102,17 @@ function progressionTable(progression, editable = false) {
 function progressionCard(progression) {
   if (!progression?.length) return '';
   return `
-    <section class="card">
-      <h2>Progresión semanal</h2>
-      <p class="muted">Cada ejercicio sigue una progresión. La semana de cada día avanza con las veces que lo hiciste.</p>
+    <details class="card prog-card">
+      <summary>
+        <span class="grow">
+          <h2>Progresión semanal</h2>
+          <small class="muted">${progression.length} semanas · ${Math.max(0, ...progression.map((w) => w.targets.length))} progresiones</small>
+        </span>
+        <span class="chevron" aria-hidden="true">›</span>
+      </summary>
+      <p class="note">Cada ejercicio sigue una progresión (P1, P2…). La semana de cada día avanza con las veces que lo terminaste.</p>
       ${progressionTable(progression)}
-    </section>`;
+    </details>`;
 }
 
 function progOptions(n, selected) {
@@ -110,13 +128,26 @@ function progFields(n, it) {
     + (p === FIXED ? `<input class="input target" data-target value="${esc(it.target || '')}" placeholder="Series x reps (ej. 3x10)">` : '');
 }
 
+// Barra con un segmento por semana: las hechas en verde y la que toca en azul.
+function weekBar(r, week) {
+  return `
+    <div class="week-bar">
+      <div class="week-bar-label">Semana <strong>${week}</strong> de ${r.progression.length}</div>
+      <div class="week-steps">${r.progression.map((_, i) =>
+        `<span class="${i + 1 < week ? 'done' : i + 1 === week ? 'current' : ''}"></span>`).join('')}</div>
+    </div>`;
+}
+
 function routineCard(r) {
   const items = r.items || [];
   const week = r.archived ? null : currentWeek(r);
   return `
-    <section class="card routine" data-id="${r.id}">
-      <div class="entry-head">
-        <h2 class="grow">${esc(r.name)}${week ? ` <small class="muted">· semana ${week} de ${r.progression.length}</small>` : ''}</h2>
+    <section class="card routine ${r.archived ? 'is-archived' : ''}" data-id="${r.id}">
+      <div class="routine-head">
+        <div class="grow">
+          <h2>${esc(r.name)}</h2>
+          <small class="muted">${items.length} ejercicio${items.length === 1 ? '' : 's'}</small>
+        </div>
         ${r.archived
           ? `<button class="btn btn-small" data-act="copy">Copiar</button>
              <button class="btn btn-small" data-act="restore">Restaurar</button>
@@ -124,15 +155,21 @@ function routineCard(r) {
           : `<button class="btn btn-small" data-act="edit">Editar</button>
              <button class="icon-btn small" data-act="archive" aria-label="Archivar" title="Archivar">📦</button>`}
       </div>
+      ${week ? weekBar(r, week) : ''}
       ${items.length ? `<ol class="routine-items">
-        ${items.map((it) => {
+        ${items.map((it, i) => {
           const ex = state.exercises.get(it.exerciseId);
           const p = itemProg(it);
-          const prog = hasProgression(r) && p !== FIXED ? `P${p}` + (week ? ' · ' : '') : '';
+          const tag = hasProgression(r) ? (p === FIXED ? 'Fijo' : `P${p}`) : '';
           const target = hasProgression(r) && !week && p !== FIXED ? '' : itemTarget(r, it, week);
-          return `<li><span>${esc(ex?.name || '(ejercicio borrado)')}</span><span class="muted">${esc(prog + target)}</span></li>`;
+          return `<li>
+            <span class="ex-num">${i + 1}</span>
+            <span class="ex-name">${esc(ex?.name || '(ejercicio borrado)')}</span>
+            ${tag ? `<span class="prog-tag ${p === FIXED ? 'fixed' : ''}">${tag}</span>` : ''}
+            ${target ? `<span class="target-pill">${esc(target)}</span>` : ''}
+          </li>`;
         }).join('')}
-      </ol>` : '<p class="muted">Sin ejercicios.</p>'}
+      </ol>` : '<p class="empty-items muted">Sin ejercicios.</p>'}
     </section>`;
 }
 
