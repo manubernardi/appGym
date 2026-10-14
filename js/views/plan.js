@@ -6,7 +6,7 @@ import { save, remove } from '../db.js';
 import { esc, openModal, confirmDialog, toast } from '../ui.js';
 import { openExercisePicker, openExerciseForm, normalize } from './exercises.js';
 import { WEIGHT_TYPES } from '../data.js';
-import { FIXED, hasProgression, progCount, itemProg, currentWeek, itemTarget } from '../progression.js';
+import { FIXED, hasProgression, progCount, itemProg, currentWeek, itemTarget, isCoreItem, coreRuns, itemsLabel } from '../progression.js';
 
 export function render(container) {
   const active = state.routines.filter((r) => !r.archived);
@@ -138,6 +138,29 @@ function weekBar(r, week) {
     </div>`;
 }
 
+// Ejercicios numerados; los de zona media seguidos van juntos en un bloque aparte (igual que al entrenar).
+function routineItems(r, items, week) {
+  const row = (it, num) => {
+    const ex = state.exercises.get(it.exerciseId);
+    const p = itemProg(it);
+    const tag = hasProgression(r) && p !== FIXED ? `P${p}` : '';
+    const target = hasProgression(r) && !week && p !== FIXED ? '' : itemTarget(r, it, week);
+    return `<li>
+      ${num ? `<span class="ex-num">${num}</span>` : '<span class="core-dot" aria-hidden="true"></span>'}
+      <span class="ex-name">${esc(ex?.name || '(ejercicio borrado)')}</span>
+      ${tag ? `<span class="prog-tag">${tag}</span>` : ''}
+      ${target ? `<span class="target-pill">${esc(target)}</span>` : ''}
+    </li>`;
+  };
+  let n = 0;
+  return coreRuns(items, (it) => isCoreItem(r, it)).map((run) => run.core
+    ? `<li class="core-block">
+        <div class="core-head">Zona media <small>· circuito de ${run.idx.length}</small></div>
+        <ul>${run.idx.map((i) => row(items[i])).join('')}</ul>
+      </li>`
+    : run.idx.map((i) => row(items[i], ++n)).join('')).join('');
+}
+
 function routineCard(r) {
   const items = r.items || [];
   const week = r.archived ? null : currentWeek(r);
@@ -146,7 +169,7 @@ function routineCard(r) {
       <div class="routine-head">
         <div class="grow">
           <h2>${esc(r.name)}</h2>
-          <small class="muted">${items.length} ejercicio${items.length === 1 ? '' : 's'}</small>
+          <small class="muted">${itemsLabel(r)}</small>
         </div>
         ${r.archived
           ? `<button class="btn btn-small" data-act="copy">Copiar</button>
@@ -156,20 +179,8 @@ function routineCard(r) {
              <button class="icon-btn small" data-act="archive" aria-label="Archivar" title="Archivar">📦</button>`}
       </div>
       ${week ? weekBar(r, week) : ''}
-      ${items.length ? `<ol class="routine-items">
-        ${items.map((it, i) => {
-          const ex = state.exercises.get(it.exerciseId);
-          const p = itemProg(it);
-          const tag = hasProgression(r) ? (p === FIXED ? 'Fijo' : `P${p}`) : '';
-          const target = hasProgression(r) && !week && p !== FIXED ? '' : itemTarget(r, it, week);
-          return `<li>
-            <span class="ex-num">${i + 1}</span>
-            <span class="ex-name">${esc(ex?.name || '(ejercicio borrado)')}</span>
-            ${tag ? `<span class="prog-tag ${p === FIXED ? 'fixed' : ''}">${tag}</span>` : ''}
-            ${target ? `<span class="target-pill">${esc(target)}</span>` : ''}
-          </li>`;
-        }).join('')}
-      </ol>` : '<p class="empty-items muted">Sin ejercicios.</p>'}
+      ${items.length ? `<ol class="routine-items">${routineItems(r, items, week)}</ol>`
+        : '<p class="empty-items muted">Sin ejercicios.</p>'}
     </section>`;
 }
 
@@ -184,9 +195,9 @@ function openRoutineEditor(routine) {
         <h3 class="list-title">Ejercicios</h3>
         <div class="routine-edit-items">
           ${routine.items.map((it, i) => `
-            <div class="routine-edit-row" data-i="${i}">
+            <div class="routine-edit-row ${isCoreItem(routine, it) ? 'core' : ''}" data-i="${i}">
               <div class="grow">
-                <div>${esc(state.exercises.get(it.exerciseId)?.name || '(ejercicio borrado)')}</div>
+                <div>${esc(state.exercises.get(it.exerciseId)?.name || '(ejercicio borrado)')}${isCoreItem(routine, it) ? ' <span class="core-tag">Zona media</span>' : ''}</div>
                 ${hasProgression(routine)
                   ? progFields(progCount(routine), it)
                   : `<input class="input target" data-target value="${esc(it.target || '')}" placeholder="Series x reps (ej. 3x10)">`}
@@ -347,9 +358,9 @@ function openImportReview(plan) {
             </label>
             <div class="routine-edit-items">
               ${r.items.map((it, i) => `
-                <div class="routine-edit-row" data-i="${i}">
+                <div class="routine-edit-row ${isCoreItem(plan, it) ? 'core' : ''}" data-i="${i}">
                   <div class="grow">
-                    <button class="link-btn" data-change>${itemLabel(it)}</button>
+                    <button class="link-btn" data-change>${itemLabel(it)}${isCoreItem(plan, it) ? ' <span class="core-tag">Zona media</span>' : ''}</button>
                     ${it.written ? `<small class="muted block">En la hoja: ${esc(it.written)}</small>` : ''}
                     ${it.newExercise ? '<button class="btn btn-small btn-inline" data-edit-new>Editar nombre y grupos</button>' : ''}
                     ${plan.progression.length

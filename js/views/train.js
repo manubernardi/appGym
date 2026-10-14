@@ -9,7 +9,7 @@ import { save, remove } from '../db.js';
 import { esc, today, fmtDate, parseNum, openModal, confirmDialog, toast } from '../ui.js';
 import { lastTime, fmtSets, validSets } from '../stats.js';
 import { openExercisePicker } from './exercises.js';
-import { FIXED, hasProgression, itemProg, currentWeek, itemTarget } from '../progression.js';
+import { FIXED, hasProgression, itemProg, currentWeek, itemTarget, coreRuns, itemsLabel } from '../progression.js';
 
 let editing = null; // { session, fromHistory }
 let saveTimer = null;
@@ -106,7 +106,7 @@ function renderHome(container) {
       ${routines.map((r) => `
         <button class="routine-btn" data-routine="${r.id}">
           <strong>${esc(r.name)}</strong>
-          <small>${weekLabel(r)}${(r.items || []).length} ejercicios${lastDoneLabel(r.id)}</small>
+          <small>${weekLabel(r)}${itemsLabel(r)}${lastDoneLabel(r.id)}</small>
         </button>`).join('')}
       <button class="routine-btn routine-free" data-free>
         <strong>Entrenamiento libre</strong>
@@ -198,15 +198,7 @@ function isCore(en) {
   return Boolean(en.circuit) || state.exercises.get(en.exerciseId)?.primary === 'Abdominales';
 }
 
-function buildPages(entries) {
-  const pages = [];
-  entries.forEach((en, i) => {
-    const last = pages[pages.length - 1];
-    if (isCore(en) && last?.core) last.idx.push(i);
-    else pages.push({ core: isCore(en), idx: [i] });
-  });
-  return pages;
-}
+const buildPages = (entries) => coreRuns(entries, isCore);
 
 const entryDone = (en) => en.sets.length > 0 && validSets(en).length === en.sets.length;
 
@@ -230,14 +222,18 @@ function renderEditor(container, opts = {}) {
       ${!hist ? '<span class="badge live">En curso</span>' : ''}
     </div>
     <div class="steps">
-      ${pages.map((p, k) => `<button class="step ${p.idx.every((i) => entryDone(s.entries[i])) ? 'done' : ''}" data-go="${k}"
+      ${pages.map((p, k) => `<button class="step ${p.core ? 'core' : ''} ${p.idx.every((i) => entryDone(s.entries[i])) ? 'done' : ''}" data-go="${k}"
         aria-label="${esc(p.core ? 'Zona media' : s.entries[p.idx[0]].name)}"></button>`).join('')}
       <button class="step step-end" data-go="${pages.length}" aria-label="Resumen"></button>
     </div>
     <div class="pager">
       ${pages.map((p, k) => `
-        <div class="pager-page" data-page="${k}">
-          ${p.core ? `<p class="page-kicker">Circuito zona media · ${p.idx.length} ejercicio${p.idx.length === 1 ? '' : 's'}</p>` : ''}
+        <div class="pager-page ${p.core ? 'core-page' : ''}" data-page="${k}">
+          ${p.core ? `
+            <div class="core-banner">
+              <strong>Zona media</strong>
+              <small>Circuito de ${p.idx.length} ejercicio${p.idx.length === 1 ? '' : 's'} · hacelos seguidos</small>
+            </div>` : ''}
           ${p.idx.map((i) => entryCard(s.entries[i], i, s.id)).join('')}
         </div>`).join('')}
       <div class="pager-page" data-page="${pages.length}">
@@ -245,8 +241,8 @@ function renderEditor(container, opts = {}) {
           <section class="card list">
             <h2 class="card-title">Resumen</h2>
             ${s.entries.map((en, i) => `
-              <button class="list-item row" data-go="${pageOf(i)}">
-                <span>${esc(state.exercises.get(en.exerciseId)?.name || en.name)}</span>
+              <button class="list-item row ${isCore(en) ? 'core' : ''}" data-go="${pageOf(i)}">
+                <span>${esc(state.exercises.get(en.exerciseId)?.name || en.name)}${isCore(en) ? ' <span class="core-tag">Zona media</span>' : ''}</span>
                 <small class="${entryDone(en) ? 'good' : 'muted'}">${validSets(en).length}/${en.sets.length} series</small>
               </button>`).join('')}
           </section>` : '<p class="muted center">Agregá el primer ejercicio.</p>'}
@@ -375,7 +371,7 @@ function entryCard(en, i, sessionId) {
   const type = WEIGHT_TYPES[ex?.type] || WEIGHT_TYPES.maquina;
   const last = lastTime(en.exerciseId, sessionId);
   return `
-    <section class="card entry" data-i="${i}">
+    <section class="card entry ${isCore(en) ? 'core' : ''}" data-i="${i}">
       <div class="entry-head">
         <div class="grow">
           <h2>${esc(ex?.name || en.name)}</h2>

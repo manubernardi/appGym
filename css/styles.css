@@ -16,6 +16,8 @@
   --grid: #e6e5e1;
   --series-1: #2a78d6;
   --series-2: #eb6834;
+  --core: #c2560f;
+  --core-soft: #fbeee4;
   --nav-h: 64px;
   --radius: 14px;
 }
@@ -38,6 +40,8 @@
     --grid: #2c2c29;
     --series-1: #3987e5;
     --series-2: #d95926;
+    --core: #f08a4b;
+    --core-soft: #2e221a;
   }
 }
 :root[data-theme="dark"] {
@@ -57,6 +61,8 @@
   --grid: #2c2c29;
   --series-1: #3987e5;
   --series-2: #d95926;
+  --core: #f08a4b;
+  --core-soft: #2e221a;
 }
 
 * { box-sizing: border-box; }
@@ -264,7 +270,6 @@ label .input { margin-top: 4px; }
   scroll-snap-align: start; scroll-snap-stop: always;
   padding: 0 16px;
 }
-.page-kicker { font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); margin: 0 4px 8px; }
 .pager-nav {
   position: sticky; bottom: calc(var(--nav-h) + 8px + env(safe-area-inset-bottom));
   display: flex; align-items: center; gap: 8px;
@@ -316,7 +321,6 @@ small.good { color: var(--good); font-weight: 600; }
   flex: none; font-size: .72rem; font-weight: 600; color: var(--text-muted);
   padding: 2px 6px; border: 1px solid var(--border); border-radius: 6px;
 }
-.prog-tag.fixed { color: var(--series-2); border-color: var(--series-2); }
 .target-pill {
   flex: none; min-width: 52px; text-align: center;
   padding: 4px 10px; border-radius: 999px;
@@ -358,6 +362,41 @@ small.good { color: var(--good); font-weight: 600; }
 .btn-inline { margin-top: 6px; }
 .archived { margin-top: 20px; }
 .archived .routine { margin-top: 10px; }
+
+/* ---------- Zona media (mismo color en el plan y al entrenar) ---------- */
+.core-tag {
+  display: inline-block; padding: 1px 7px; border-radius: 6px; vertical-align: middle;
+  font-size: .72rem; font-weight: 600; color: var(--core); background: var(--core-soft);
+}
+.routine-items .core-block {
+  display: block; padding: 0;
+  background: var(--core-soft); border-left: 4px solid var(--core);
+}
+.core-head {
+  padding: 10px 14px 4px 10px;
+  font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--core);
+}
+.core-head small { font-weight: 500; text-transform: none; letter-spacing: 0; }
+.core-block ul { list-style: none; margin: 0; padding: 0 0 4px; }
+.core-block li { padding: 8px 14px 8px 10px; border-bottom: none; }
+.core-dot { flex: none; width: 24px; display: inline-flex; justify-content: center; }
+.core-dot::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--core); }
+.core-block .target-pill { background: var(--surface-1); color: var(--core); }
+.routine-edit-row.core { border-left: 4px solid var(--core); padding-left: 10px; background: var(--core-soft); }
+
+.step.core { background: var(--core-soft); box-shadow: inset 0 0 0 1px var(--core); }
+.step.core.done { background: var(--good); box-shadow: none; }
+.step.core.current { background: var(--core); box-shadow: none; }
+.core-banner {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 12px 14px; margin-bottom: 12px; border-radius: var(--radius);
+  background: var(--core-soft); border: 1px solid var(--core); border-left-width: 4px;
+}
+.core-banner strong { font-size: 1.1rem; color: var(--core); }
+.core-banner small { color: var(--text-secondary); }
+.entry.core { border-left: 4px solid var(--core); }
+.entry.core .badge { background: var(--core-soft); color: var(--core); }
+.list-item.core { box-shadow: inset 4px 0 0 var(--core); }
 .archived summary { cursor: pointer; color: var(--text-secondary); padding: 10px 0; }
 
 /* ---------- Ejercicios ---------- */

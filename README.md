@@ -45,7 +45,7 @@ Desde esta carpeta: `npx serve .` (o cualquier servidor estático) y abrí `http
   Revisás, corregís lo que haga falta y elegís cómo cargar cada día: como rutina nueva, *actualizando* una que ya tenés (mantiene la semana en la que vas) o no cargarlo. Las rutinas actuales que no se actualizan se archivan o se dejan, según elijas.
 - **Progresión semanal**: si la hoja trae la tabla *Progresión semanal* (columnas = progresión 1, 2, 3…; filas = semanas),
   cada ejercicio guarda su número de progresión (el `(n)` al lado del nombre; sin número = 1).
-  Los de **zona media** tienen sus propias series x reps ("Puente frontal 3*10") y quedan como **Fijo**: no siguen la tabla.
+  Los de **zona media** tienen sus propias series x reps ("Puente frontal 3*10") y quedan como **Fijo**: no siguen la tabla. En el plan y al entrenar se marcan en naranja, en un bloque aparte.
   La semana se cuenta **por día**: si terminaste el Día 1 dos veces, la próxima vez que lo hagas es la semana 3, aunque el Día 2 siga en la semana 2.
   Al empezar el entrenamiento, los objetivos y la cantidad de series salen de esa semana. Pasada la última semana de la tabla, se repite la última.
   Cuando cambia el plan, *Empezar plan nuevo* archiva las rutinas viejas (los registros se mantienen).

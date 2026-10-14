@@ -155,3 +155,26 @@ Está explicado en el paso 1b del [README](README.md).
 - **Progresión semanal**: pasó abajo de las rutinas y se despliega al tocarla, para que no ocupe toda la pantalla.
 - *Empezar plan nuevo* quedó como botón discreto al final.
 - Archivos: [`js/views/plan.js`](js/views/plan.js) (`routineCard`, `weekBar`, `progressionCard`), [`css/styles.css`](css/styles.css), [`README.md`](README.md), [`sw.js`](sw.js) (caché `gimnasio-v7`).
+
+## v8 — Zona media bien diferenciada (2026-10-14)
+
+La zona media ahora tiene su propio color (naranja) en toda la app, así se distingue de un vistazo de los ejercicios principales.
+
+- **Plan**: los ejercicios de zona media seguidos van en un **bloque aparte** al final de la lista, con el título *Zona media · circuito de N*.
+  Los ejercicios principales se numeran solos (1, 2, 3…) y los de zona media llevan un punto naranja. Debajo del nombre de la rutina dice, por ejemplo,
+  *5 ejercicios + 3 de zona media*. En *Editar* y en la revisión del plan desde foto, esas filas aparecen marcadas con la etiqueta **Zona media**.
+- **Entrenar**:
+  - En el inicio, cada rutina muestra cuántos ejercicios son de zona media.
+  - La página del circuito empieza con un cartel **Zona media** y sus ejercicios tienen el borde naranja.
+  - En la barra de progreso de arriba, el segmento de la zona media es naranja (verde cuando está completo).
+  - En el resumen final, esos ejercicios llevan la etiqueta **Zona media**.
+- Es zona media lo mismo que antes: objetivo *Fijo* en el plan o grupo principal Abdominales.
+
+### Cambios técnicos
+| Archivo | Cambio |
+|---|---|
+| [`js/progression.js`](js/progression.js) | `isCoreItem`, `coreRuns` (agrupa la zona media seguida, lo usan el plan y el entrenamiento) e `itemsLabel`. |
+| [`js/views/plan.js`](js/views/plan.js) | `routineItems` arma la lista con el bloque de zona media; filas marcadas en el editor y en la revisión. |
+| [`js/views/train.js`](js/views/train.js) | `buildPages` usa `coreRuns`; cartel, borde y etiqueta de zona media. |
+| [`css/styles.css`](css/styles.css) | Colores `--core` / `--core-soft` (claro y oscuro), `.core-block`, `.core-tag`, `.core-banner`, `.step.core`, `.entry.core`. Se sacaron `.page-kicker` y `.prog-tag.fixed`. |
+| [`sw.js`](sw.js) | Caché `gimnasio-v8`. |

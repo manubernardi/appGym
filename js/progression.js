@@ -29,6 +29,35 @@ export function currentWeek(routine) {
   return Math.min(done + 1, routine.progression.length);
 }
 
+// Zona media: en el plan tiene objetivo Fijo o su grupo principal es Abdominales
+// (así también cuentan los de rutinas cargadas antes de que existiera "Fijo").
+export function isCoreItem(routine, item) {
+  return (hasProgression(routine) && itemProg(item) === FIXED)
+    || state.exercises.get(item.exerciseId)?.primary === 'Abdominales';
+}
+
+// "5 ejercicios + 3 de zona media"
+export function itemsLabel(routine) {
+  const items = routine?.items || [];
+  const core = items.filter((it) => isCoreItem(routine, it)).length;
+  const main = items.length - core;
+  return [
+    main || !core ? `${main} ejercicio${main === 1 ? '' : 's'}` : '',
+    core ? `${core} de zona media` : '',
+  ].filter(Boolean).join(' + ');
+}
+
+// Agrupa los elementos seguidos de zona media: [{ core, idx: [índices] }, …].
+export function coreRuns(list, isCore) {
+  const runs = [];
+  list.forEach((x, i) => {
+    const last = runs[runs.length - 1];
+    if (isCore(x) && last?.core) last.idx.push(i);
+    else runs.push({ core: isCore(x), idx: [i] });
+  });
+  return runs;
+}
+
 // Objetivo del ejercicio en esa semana ("3x10"). Sin tabla o con objetivo fijo, el objetivo escrito.
 export function itemTarget(routine, item, week) {
   const prog = itemProg(item);
