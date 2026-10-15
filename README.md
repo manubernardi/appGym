@@ -93,6 +93,12 @@ Desde esta carpeta: `npx serve .` (o cualquier servidor estático) y abrí `http
 - **Más**: historial completo (se puede editar o borrar cualquier entrenamiento), tus ejercicios (nombre, tipo de peso,
   grupos musculares) y copia de seguridad en un archivo.
 
+### Catálogo de ejercicios
+Los ejercicios de base (70: pecho, espalda, …, cardio) están en el código ([`js/data.js`](js/data.js), `CATALOG`), no en la base de datos.
+En Firestore cada usuario guarda solo lo suyo: los ejercicios que crea, los del catálogo que edita (mismo id) y los que oculta (`hidden: true`).
+Así un usuario nuevo empieza sin documentos y un ejercicio agregado al catálogo le llega a todos al publicar.
+Los ids del catálogo (`base-…`) no se cambian nunca: los entrenamientos y rutinas los guardan.
+
 ### Cómo se anota el peso
 En ejercicios de mancuerna se anota el peso de una; con barra, el peso total; en máquina o polea, el número de la máquina.
 

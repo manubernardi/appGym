@@ -322,3 +322,20 @@ Preparación para que la use más gente.
 - App Check con **Fraud Defense (antes reCAPTCHA Enterprise)**: Firebase marca reCAPTCHA v3 "Classic" como obsoleto, así que se usa `ReCaptchaEnterpriseProvider` ([`js/db.js`](js/db.js)).
 - Clave del sitio en `appCheckSiteKey` ([`js/firebase-config.js`](js/firebase-config.js)); el proyecto de Google Cloud es el mismo de Firebase. Todavía **sin exigir** (Enforce): primero hay que ver en Firebase → App Check que los pedidos lleguen verificados.
 - Caché `gimnasio-v17` en [`sw.js`](sw.js).
+
+## v18 — Catálogo de ejercicios en el código (2026-10-16)
+
+Antes, a cada usuario nuevo se le copiaban los 70 ejercicios iniciales como documentos propios: 70 escrituras al entrar por primera vez
+y 70 lecturas más cada vez que se abría la app. Ahora:
+
+- Los 70 ejercicios de base son un **catálogo en el código** (`CATALOG` en [`js/data.js`](js/data.js)) con ids fijos (`base-press-banca-plano`, …).
+- En Firestore cada usuario guarda solo lo suyo: ejercicios que crea, ejercicios del catálogo que **edita** (se guarda su versión con el mismo id)
+  y los que **borra** (se guarda `hidden: true`, porque el del catálogo no se puede borrar).
+- La app une las dos cosas (`mergeExercises`). Un usuario nuevo ya no escribe nada al entrar.
+- **Usuarios de antes**: sus copias de la lista inicial siguen siendo suyas (sus entrenamientos apuntan a ellas). Si tienen un ejercicio con el mismo
+  nombre que uno del catálogo, se muestra solo el suyo, así no aparecen repetidos. Si alguna vez borraron uno de la lista inicial, vuelve a aparecer el del catálogo
+  (se puede borrar de nuevo).
+- Ya no hacen falta `seedIfNeeded` ni la marca `cardioSeeded`: el cardio está en el catálogo.
+- [`firestore.rules`](firestore.rules): acepta la marca de oculto y ids de hasta 60 letras (los del catálogo). **Hay que volver a publicar las reglas.**
+- Tests: [`tests/catalog.test.mjs`](tests/catalog.test.mjs) (unión del catálogo, usuarios nuevos y de antes, ids fijos) y en las reglas.
+- Caché `gimnasio-v18` en [`sw.js`](sw.js).

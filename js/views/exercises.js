@@ -1,8 +1,8 @@
 // Selector de ejercicios y formulario para crear/editar ejercicios.
 
-import { GROUPS, EXERCISE_GROUPS, WEIGHT_TYPES, CARDIO } from '../data.js';
+import { GROUPS, EXERCISE_GROUPS, WEIGHT_TYPES, CARDIO, normalize } from '../data.js';
 import { state } from '../store.js';
-import { save, remove } from '../db.js';
+import { save, removeExercise } from '../db.js';
 import { esc, openModal, confirmDialog, toast } from '../ui.js';
 
 export function groupsLabel(ex) {
@@ -10,9 +10,7 @@ export function groupsLabel(ex) {
   return ex.primary + sec;
 }
 
-export function normalize(s) {
-  return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-}
+export { normalize };
 
 // Lista de ejercicios agrupada por grupo principal, con buscador.
 // onPick(ejercicio) se llama al tocar uno.
@@ -152,7 +150,7 @@ export function openExerciseForm(ex = {}, onSaved, { draft = false } = {}) {
         return;
       }
       if (await confirmDialog(`¿Borrar "${ex.name}"?`, 'Borrar', true)) {
-        remove('exercises', ex.id);
+        removeExercise(ex.id);
         close();
       }
     });

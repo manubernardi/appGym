@@ -10,11 +10,11 @@ import {
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
-  collection, doc, getDoc, getDocs, onSnapshot, setDoc, deleteDoc, writeBatch,
+  collection, doc, onSnapshot, setDoc, deleteDoc,
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 
 import { firebaseConfig, appCheckSiteKey } from './firebase-config.js';
-import { SEED_EXERCISES, SEED_CARDIO_EXERCISES } from './data.js';
+import { mergeExercises, isCatalogId } from './data.js';
 import { state, emit } from './store.js';
 import { toast } from './ui.js';
 
@@ -60,11 +60,10 @@ export function watchAuth() {
     unsubscribers = [];
     state.user = user;
     state.loaded = {};
-    COLLECTIONS.forEach((c) => { state[c] = c === 'exercises' ? new Map() : []; });
+    COLLECTIONS.forEach((c) => { state[c] = c === 'exercises' ? mergeExercises([]) : []; });
     state.authReady = true;
     emit();
     if (!user) return;
-    await seedIfNeeded();
     COLLECTIONS.forEach(listen);
   });
 }
@@ -73,8 +72,7 @@ function listen(name) {
   const unsub = onSnapshot(col(name), (snap) => {
     const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     if (name === 'exercises') {
-      docs.sort((a, b) => a.name.localeCompare(b.name, 'es'));
-      state.exercises = new Map(docs.map((d) => [d.id, d]));
+      state.exercises = mergeExercises(docs); // catálogo + los del usuario
     } else if (name === 'sessions') {
       docs.sort((a, b) => (b.date + (b.createdAt || '')).localeCompare(a.date + (a.createdAt || '')));
       state.sessions = docs;
@@ -93,28 +91,6 @@ function listen(name) {
   unsubscribers.push(unsub);
 }
 
-// La primera vez que entrás, carga la lista inicial de ejercicios.
-// Si ya la tenías, le suma una vez los ejercicios de cardio que no tengas (por nombre).
-async function seedIfNeeded() {
-  const userRef = doc(fs, 'users', state.user.uid);
-  let seeds = SEED_EXERCISES;
-  try {
-    const snap = await getDoc(userRef);
-    if (snap.exists() && snap.data().seeded) {
-      if (snap.data().cardioSeeded) return;
-      const names = new Set((await getDocs(col('exercises'))).docs.map((d) => (d.data().name || '').toLowerCase()));
-      seeds = SEED_CARDIO_EXERCISES.filter((ex) => !names.has(ex.name.toLowerCase()));
-    }
-  } catch {
-    return; // sin conexión: se intentará la próxima vez
-  }
-  const batch = writeBatch(fs);
-  const now = new Date().toISOString();
-  seeds.forEach((ex) => batch.set(doc(col('exercises')), { ...ex, createdAt: now }));
-  batch.set(userRef, { seeded: true, cardioSeeded: true, ...(seeds === SEED_EXERCISES ? { createdAt: now } : {}) }, { merge: true });
-  batch.commit().catch((err) => toast('Error creando ejercicios: ' + err.message));
-}
-
 // Guarda un documento (crea uno nuevo si no tiene id). Devuelve el id.
 export function save(name, data) {
   const { id, ...rest } = data;
@@ -122,6 +98,12 @@ export function save(name, data) {
   if (!rest.createdAt) rest.createdAt = new Date().toISOString();
   setDoc(ref, rest).catch((err) => toast('Error guardando: ' + err.message));
   return ref.id;
+}
+
+// Borrar un ejercicio del catálogo no borra nada (no es del usuario): se guarda que lo ocultó.
+export function removeExercise(id) {
+  if (isCatalogId(id)) save('exercises', { id, hidden: true });
+  else remove('exercises', id);
 }
 
 export function remove(name, id) {

@@ -43,6 +43,12 @@ service cloud.firestore {
         && opt(d, 'createdAt', str(d.get('createdAt', ''), 40));
     }
 
+    // Un ejercicio del catálogo (id base-...) que el usuario ocultó: solo la marca.
+    function hiddenExercise(d) {
+      return d.keys().hasOnly(['hidden', 'createdAt']) && d.hidden == true && base(d, 2);
+    }
+
+    // Ejercicio propio, o uno del catálogo editado (con el mismo id).
     function validExercise(d) {
       return base(d, 8)
         && str(d.name, 100) && d.name.size() > 0
@@ -76,7 +82,7 @@ service cloud.firestore {
     }
 
     function valid(col, d) {
-      return (col == 'exercises' && validExercise(d))
+      return (col == 'exercises' && (validExercise(d) || hiddenExercise(d)))
         || (col == 'routines' && validRoutine(d))
         || (col == 'sessions' && validSession(d))
         || (col == 'bodyweight' && validBodyweight(d));
@@ -86,10 +92,10 @@ service cloud.firestore {
       allow read, delete: if isOwner(uid);
       allow create, update: if isOwner(uid) && validUser(request.resource.data);
 
-      // Solo estas colecciones, con ids razonables. Nada más profundo.
+      // Solo estas colecciones, con ids razonables (los automáticos tienen 20 letras; los del catálogo, base-...). Nada más profundo.
       match /{col}/{id} {
         allow read, delete: if isOwner(uid) && col in ['exercises', 'routines', 'sessions', 'bodyweight'];
-        allow create, update: if isOwner(uid) && id.size() <= 40 && valid(col, request.resource.data);
+        allow create, update: if isOwner(uid) && id.size() <= 60 && valid(col, request.resource.data);
       }
     }
   }

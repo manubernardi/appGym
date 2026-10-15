@@ -97,6 +97,15 @@ test('ejercicios: nombre, tipo y grupos válidos', async () => {
   await assertFails(setDoc(ref(db, 'exercises/e1'), { type: 'barra', primary: 'Pecho' })); // sin nombre
 });
 
+test('ejercicios del catálogo: editarlos y ocultarlos', async () => {
+  const db = me();
+  await assertSucceeds(setDoc(ref(db, 'exercises/base-extension-de-triceps-sobre-la-cabeza'), { ...EXERCISE, name: 'Extensión sobre la cabeza' }));
+  await assertSucceeds(setDoc(ref(db, 'exercises/base-pec-deck'), { hidden: true, createdAt: '2026-10-16T10:00:00.000Z' }));
+  await assertFails(setDoc(ref(db, 'exercises/base-pec-deck'), { hidden: true, basura: big(1000) }));
+  await assertFails(setDoc(ref(db, 'exercises/base-pec-deck'), { hidden: 'si' }));
+  await assertFails(setDoc(ref(db, `exercises/${big(61)}`), EXERCISE));
+});
+
 test('rutinas: límites de ejercicios y semanas', async () => {
   const db = me();
   await assertFails(setDoc(ref(db, 'routines/r1'), { ...ROUTINE, items: many(61) }));
