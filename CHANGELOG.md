@@ -285,3 +285,10 @@ Las series por grupo (con el ½ de los secundarios y el objetivo de 10 a 20) no 
 | [`js/views/progress.js`](js/views/progress.js) | `renderRecords` con chips de grupo (`ui.recGroup`), `recordRow` y `recordValue`; `diffBadge` dice *rep* en singular. |
 | [`css/styles.css`](css/styles.css) | `.rec-*`; fuera `.record-val`. |
 | [`sw.js`](sw.js) | Caché `gimnasio-v14`. |
+
+## v15 — Mejora en kg y reps a la vez (2026-10-15)
+
+- Cuando cambian el peso y las reps, el cartel muestra las dos cosas: *▲ +2,5 kg y +2 reps*. Si subió el peso pero bajaron las reps: *▲ +2,5 kg · −2 reps*.
+  Antes mostraba solo los kg. Aplica en *Récords* y en *Mes → Fuerza por ejercicio*.
+- Sube o baja según el peso; a igual peso, según las reps.
+- Archivos: [`js/views/progress.js`](js/views/progress.js) (`diffBadge`), [`sw.js`](sw.js) (caché `gimnasio-v15`).

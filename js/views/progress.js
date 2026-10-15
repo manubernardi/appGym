@@ -156,12 +156,20 @@ function fmtSet(ex, s) {
   return `${fmtNum(s.w || 0, 2)}${ex.type === 'mancuerna' ? ' c/u' : ''} × ${s.r}`;
 }
 
-// Diferencia entre la primera y la última vez: en kg si cambió el peso, si no en reps.
+// Diferencia entre dos series: kg y reps, lo que haya cambiado ("▲ +2,5 kg y +2 reps", "▲ +2,5 kg · −1 rep").
+// Sube o baja según el peso; a igual peso, según las reps.
 function diffBadge(ex, a, b) {
   const dw = (b.w || 0) - (a.w || 0);
-  const [v, unit] = dw ? [dw, ' kg'] : [b.r - a.r, Math.abs(b.r - a.r) === 1 ? ' rep' : ' reps'];
-  const cls = v > 0 ? 'up' : v < 0 ? 'down' : '';
-  return `<span class="pct ${cls}">${v > 0 ? '▲ +' : v < 0 ? '▼ −' : '= '}${v ? fmtNum(Math.abs(v), 2) + unit : 'igual'}</span>`;
+  const dr = b.r - a.r;
+  const sign = (v) => (v > 0 ? '+' : '−');
+  const parts = [
+    dw ? `${sign(dw)}${fmtNum(Math.abs(dw), 2)} kg` : '',
+    dr ? `${sign(dr)}${Math.abs(dr)} ${Math.abs(dr) === 1 ? 'rep' : 'reps'}` : '',
+  ].filter(Boolean);
+  const dir = dw || dr;
+  const cls = dir > 0 ? 'up' : dir < 0 ? 'down' : '';
+  const text = dir ? `${dir > 0 ? '▲' : '▼'} ${parts.join(dw * dr < 0 ? ' · ' : ' y ')}` : '= igual';
+  return `<span class="pct ${cls}">${text}</span>`;
 }
 
 function strengthRows(list) {
