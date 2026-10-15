@@ -6,7 +6,7 @@ import { save, remove } from '../db.js';
 import { esc, openModal, confirmDialog, toast } from '../ui.js';
 import { openExercisePicker, openExerciseForm, normalize } from './exercises.js';
 import { WEIGHT_TYPES, CATEGORIES } from '../data.js';
-import { FIXED, hasProgression, progCount, itemProg, currentWeek, itemTarget, itemCategory, categoryRuns, itemsLabel } from '../progression.js';
+import { FIXED, hasProgression, progCount, itemProg, weekStatus, itemTarget, itemCategory, categoryRuns, itemsLabel } from '../progression.js';
 
 export function render(container) {
   const active = state.routines.filter((r) => !r.archived);
@@ -128,15 +128,18 @@ function progFields(n, it) {
     + (p === FIXED ? `<input class="input target" data-target value="${esc(it.target || '')}" placeholder="Series x reps (ej. 3x10)">` : '');
 }
 
-// Barra con un segmento por semana: las hechas en verde y la que toca en azul.
-function weekBar(r, week) {
+// Barra con un segmento por semana: las hechas en verde, las que quedaron sin entrenar en rojo y la actual en azul.
+function weekBar(r, st) {
+  const cls = (w) => (st.done.has(w) ? 'done' : w < st.now ? 'missed' : w === st.now ? 'current' : '');
+  const notes = [
+    st.missed.length ? `sin entrenar: ${st.missed.join(', ')}` : '',
+    st.week !== st.now ? `la próxima vez recupera la ${st.week}` : '',
+  ].filter(Boolean).join(' · ');
   return `
     <div class="week-bar">
-      <div class="week-bar-label">Semana <strong>${week}</strong> de ${r.progression.length}</div>
-      <div class="week-steps">${r.progression.map((_, i) =>
-        `<span class="${i + 1 < week ? 'done' : i + 1 === week ? 'current' : ''}"></span>`).join('')}</div>
-    </div>`;
-}
+      <div class="week-bar-label">Semana <strong>${st.now}</strong> de ${r.progression.length}${notes ? ` · ${notes}` : ''}</div>
+      <div class="week-steps">${r.progression.map((_, i) => `<span class="${cls(i + 1)}"></span>`).join('')}</div>
+    </div>
 
 // Etiqueta de zona media o cardio (fuerza es lo normal y no lleva).
 function catTag(cat) {
@@ -167,7 +170,8 @@ function routineItems(r, items, week) {
 
 function routineCard(r) {
   const items = r.items || [];
-  const week = r.archived ? null : currentWeek(r);
+  const st = r.archived ? null : weekStatus(r);
+  const week = st?.week;
   return `
     <section class="card routine ${r.archived ? 'is-archived' : ''}" data-id="${r.id}">
       <div class="routine-head">
@@ -182,7 +186,7 @@ function routineCard(r) {
           : `<button class="btn btn-small" data-act="edit">Editar</button>
              <button class="icon-btn small" data-act="archive" aria-label="Archivar" title="Archivar">📦</button>`}
       </div>
-      ${week ? weekBar(r, week) : ''}
+      ${st ? weekBar(r, st) : ''}
       ${items.length ? `<ol class="routine-items">${routineItems(r, items, week)}</ol>`
         : '<p class="empty-items muted">Sin ejercicios.</p>'}
     </section>`;

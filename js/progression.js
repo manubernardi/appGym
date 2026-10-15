@@ -3,10 +3,15 @@
 // (un elemento por semana; cada posición de targets es una progresión: 1, 2, 3…).
 // Cada ejercicio indica qué progresión sigue: item.prog (1, 2, 3…; sin número = 1).
 // item.prog = 0: no sigue la tabla, usa siempre su objetivo fijo item.target (ej. la zona media, "3x10").
-// La semana de cada rutina avanza con las veces que la terminaste; pasada la última, queda en la última.
+// Las semanas son de calendario (lunes a domingo): la Semana 1 es la del primer entrenamiento del plan
+// y cada lunes pasa a la siguiente, aunque no hayas hecho todos los días. Pasada la última, queda en la última.
+// Una semana que terminó sin hacer esa rutina queda "sin entrenar" y se puede recuperar:
+// si la semana actual ya está hecha, la próxima vez que hagas la rutina recupera la pendiente más vieja.
 
 import { state } from './store.js';
 import { exerciseCategory, CATEGORIES } from './data.js';
+import { today, parseDate } from './ui.js';
+import { weekStart } from './stats.js';
 
 export const FIXED = 0;
 
@@ -23,11 +28,44 @@ export function itemProg(item) {
   return item.prog === FIXED ? FIXED : item.prog || 1;
 }
 
-// Semana que toca para esta rutina (1…N). Solo cuentan los entrenamientos terminados.
-export function currentWeek(routine) {
+// Lunes de la Semana 1: la semana del primer entrenamiento terminado con alguna rutina del plan.
+// Sin entrenamientos todavía, null (estás en la Semana 1).
+function planStart(routine) {
+  const ids = new Set(state.routines.filter((r) => !r.archived && hasProgression(r)).map((r) => r.id).concat(routine.id));
+  const dates = state.sessions.filter((s) => s.finished && ids.has(s.routineId)).map((s) => s.date).sort();
+  return dates.length ? weekStart(dates[0]) : null;
+}
+
+// Semana que toca: la actual si no está hecha; si ya está hecha, la pendiente más vieja; si no hay, otra vez la actual.
+function weekToDo(now, done) {
+  if (!done.has(now)) return now;
+  for (let w = 1; w < now; w++) if (!done.has(w)) return w;
+  return now;
+}
+
+// Estado de las semanas de una rutina: { week: la que toca, now: la de calendario, done: Set de hechas,
+// missed: [sin entrenar] }. Las semanas hechas se reconstruyen repasando los entrenamientos terminados en orden.
+export function weekStatus(routine) {
   if (!hasProgression(routine)) return null;
-  const done = state.sessions.filter((s) => s.routineId === routine.id && s.finished).length;
-  return Math.min(done + 1, routine.progression.length);
+  const n = routine.progression.length;
+  const start = planStart(routine);
+  const calWeek = (date) => (start
+    ? Math.min(n, Math.round((parseDate(weekStart(date)) - parseDate(start)) / (7 * 864e5)) + 1)
+    : 1);
+  const done = new Set();
+  state.sessions
+    .filter((s) => s.routineId === routine.id && s.finished)
+    .sort((a, b) => (a.date + (a.createdAt || '')).localeCompare(b.date + (b.createdAt || '')))
+    .forEach((s) => done.add(weekToDo(calWeek(s.date), done)));
+  const now = calWeek(today());
+  const missed = [];
+  for (let w = 1; w < now; w++) if (!done.has(w)) missed.push(w);
+  return { week: weekToDo(now, done), now, done, missed };
+}
+
+// Semana que toca para esta rutina (1…N).
+export function currentWeek(routine) {
+  return weekStatus(routine)?.week ?? null;
 }
 
 // Categoría del ejercicio de una rutina: 'fuerza', 'core' (zona media) o 'cardio'.

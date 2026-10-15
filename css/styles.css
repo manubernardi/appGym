@@ -323,6 +323,7 @@ small.good { color: var(--good); font-weight: 600; }
 .week-steps span { flex: 1; height: 6px; border-radius: 3px; background: var(--surface-2); }
 .week-steps span.done { background: var(--good); }
 .week-steps span.current { background: var(--accent); }
+.week-steps span.missed { background: var(--danger); opacity: .55; }
 
 .routine-items { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--border); }
 .routine-items li {

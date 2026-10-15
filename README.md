@@ -46,7 +46,9 @@ Desde esta carpeta: `npx serve .` (o cualquier servidor estático) y abrí `http
 - **Progresión semanal**: si la hoja trae la tabla *Progresión semanal* (columnas = progresión 1, 2, 3…; filas = semanas),
   cada ejercicio guarda su número de progresión (el `(n)` al lado del nombre; sin número = 1).
   Los de **zona media** tienen sus propias series x reps ("Puente frontal 3*10") y quedan como **Fijo**: no siguen la tabla.
-  La semana se cuenta **por día**: si terminaste el Día 1 dos veces, la próxima vez que lo hagas es la semana 3, aunque el Día 2 siga en la semana 2.
+  Las semanas son **de calendario** (lunes a domingo): la semana 1 es la del primer entrenamiento del plan y cada lunes pasa a la siguiente,
+  aunque no hayas hecho todos los días. Si una semana terminó sin hacer un día, esa semana queda **sin entrenar** (en rojo en la barra del plan).
+  Si ya hiciste el día en la semana actual y lo volvés a hacer, **recupera** la semana sin entrenar más vieja (con sus objetivos); si no hay ninguna, repite la actual.
   Al empezar el entrenamiento, los objetivos y la cantidad de series salen de esa semana. Pasada la última semana de la tabla, se repite la última.
   Cuando cambia el plan, *Empezar plan nuevo* archiva las rutinas viejas (los registros se mantienen).
 - **Fuerza, zona media y cardio**: los ejercicios se separan en estas tres categorías, cada una con su color

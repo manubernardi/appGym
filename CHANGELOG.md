@@ -217,3 +217,23 @@ La zona media ahora tiene su propio color (naranja) en toda la app, así se dist
 | [`js/views/more.js`](js/views/more.js), [`js/views/progress.js`](js/views/progress.js) | Duración en el historial; tiempo entrenado y cardio en el mes. |
 | [`css/styles.css`](css/styles.css) | Colores `--fuerza`, `--core`, `--cardio` (y `-soft`); clases `.cat-*` en lugar de `.core-*`; `.clock`; `[hidden]` siempre oculta. |
 | [`sw.js`](sw.js) | Caché `gimnasio-v9`. |
+
+## v10 — Semanas de calendario (2026-10-15)
+
+Antes la semana de cada día avanzaba solo cuando lo terminabas, así que si faltabas un día ese día quedaba atrasado respecto de los otros.
+
+- Las semanas del plan ahora son **de lunes a domingo**. La **semana 1** es la del primer entrenamiento del plan y cada lunes pasa a la siguiente progresión, hayas hecho todos los días o no.
+- Si una semana termina sin que hayas hecho un día, esa semana queda **sin entrenar** para ese día: en *Plan* se ve en rojo en la barra de semanas (*Semana 3 de 6 · sin entrenar: 2*).
+- **Recuperar**: si ya hiciste el día en la semana actual y lo volvés a hacer, usa los objetivos de la semana sin entrenar más vieja y la marca como hecha.
+  En *Entrenar* el botón dice *Recupera semana 2* y en *Plan* *la próxima vez recupera la 2*. Si no hay nada pendiente, repite la semana actual.
+- Pasada la última semana de la tabla, se sigue usando la última.
+- No hace falta migrar nada: las semanas hechas se calculan con las fechas de los entrenamientos terminados, también los de antes.
+
+### Cambios técnicos
+| Archivo | Cambio |
+|---|---|
+| [`js/progression.js`](js/progression.js) | `weekStatus` (semana actual, la que toca, hechas y sin entrenar) a partir de `planStart` y `weekToDo`; `currentWeek` la usa. |
+| [`js/views/plan.js`](js/views/plan.js) | `weekBar` muestra hechas, sin entrenar, actual y qué semana se recupera. |
+| [`js/views/train.js`](js/views/train.js) | `weekLabel` avisa cuando el entrenamiento recupera una semana. |
+| [`css/styles.css`](css/styles.css) | `.week-steps span.missed`. |
+| [`sw.js`](sw.js) | Caché `gimnasio-v10`. |

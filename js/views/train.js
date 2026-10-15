@@ -10,7 +10,7 @@ import { save, remove } from '../db.js';
 import { esc, today, fmtDate, parseNum, openModal, confirmDialog, toast, fmtClock, fmtDuration } from '../ui.js';
 import { lastTime, fmtSets, validSets } from '../stats.js';
 import { openExercisePicker } from './exercises.js';
-import { FIXED, hasProgression, itemProg, currentWeek, itemTarget, categoryRuns, itemsLabel } from '../progression.js';
+import { FIXED, hasProgression, itemProg, currentWeek, weekStatus, itemTarget, categoryRuns, itemsLabel } from '../progression.js';
 
 let editing = null; // { session, fromHistory }
 let saveTimer = null;
@@ -155,8 +155,9 @@ function renderHome(container) {
 }
 
 function weekLabel(routine) {
-  const w = currentWeek(routine);
-  return w ? `Semana ${w} de ${routine.progression.length} · ` : '';
+  const st = weekStatus(routine);
+  if (!st) return '';
+  return st.week !== st.now ? `Recupera semana ${st.week} · ` : `Semana ${st.week} de ${routine.progression.length} · `;
 }
 
 function lastDoneLabel(routineId) {
