@@ -13,4 +13,4 @@ export const firebaseConfig = {
 // App Check: clave de Fraud Defense (antes reCAPTCHA Enterprise) del sitio, creada en Google Cloud para manubernardi.github.io.
 // Hace que solo esta app pueda usar Firestore y Gemini del proyecto. Vacía = App Check apagado.
 // No es secreta. Pasos en el README ("App Check").
-export const appCheckSiteKey = '';
+export const appCheckSiteKey = '6LfLYPEtAAAAAAQfu2tO_5TRurbWTFX--t6EnTUp';

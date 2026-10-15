@@ -316,3 +316,9 @@ Preparación para que la use más gente.
 - [`firebase.json`](firebase.json) y [`.firebaserc`](.firebaserc) para el emulador y para publicar las reglas; dependencias de desarrollo (`firebase-tools`, `@firebase/rules-unit-testing`) solo para los tests.
 - [`.gitattributes`](.gitattributes): el hook `pre-push` siempre con fin de línea LF.
 - Caché `gimnasio-v16` en [`sw.js`](sw.js).
+
+## v17 — App Check activado (2026-10-15)
+
+- App Check con **Fraud Defense (antes reCAPTCHA Enterprise)**: Firebase marca reCAPTCHA v3 "Classic" como obsoleto, así que se usa `ReCaptchaEnterpriseProvider` ([`js/db.js`](js/db.js)).
+- Clave del sitio en `appCheckSiteKey` ([`js/firebase-config.js`](js/firebase-config.js)); el proyecto de Google Cloud es el mismo de Firebase. Todavía **sin exigir** (Enforce): primero hay que ver en Firebase → App Check que los pedidos lleguen verificados.
+- Caché `gimnasio-v17` en [`sw.js`](sw.js).
