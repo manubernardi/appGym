@@ -53,7 +53,7 @@ Desde esta carpeta: `npx serve .` (o cualquier servidor estático) y abrí `http
   Cuando cambia el plan, *Empezar plan nuevo* archiva las rutinas viejas (los registros se mantienen).
 - **Fuerza, zona media y cardio**: los ejercicios se separan en estas tres categorías, cada una con su color
   (azul, naranja y violeta) en el plan y al entrenar. Cardio es un grupo más en *Mis ejercicios* (cinta, bici, elíptico…):
-  se anota en minutos y, si querés, km, y no cuenta en las series por grupo ni en los récords de fuerza.
+  se anota en minutos y, si querés, km, y no cuenta en los récords ni en la fuerza por ejercicio.
   Zona media = grupo Abdominales u objetivo *Fijo* en el plan.
 - **Entrenar**: elegís la rutina y anotás kg y reps de cada serie. Cada ejercicio de fuerza es una página que pasás deslizando o con *Anterior / Siguiente*
   (los de zona media seguidos van juntos en una página, y lo mismo el cardio); la barra de arriba muestra en verde los completos y al final está el resumen para terminar. Arriba de cada ejercicio ves lo que hiciste la última vez,
@@ -62,17 +62,17 @@ Desde esta carpeta: `npx serve .` (o cualquier servidor estático) y abrí `http
   (y se puede corregir al editar un entrenamiento).
   Si dejás un entrenamiento abierto sin terminarlo, a las 6 horas se cierra solo (se guarda si tiene series, se borra si está vacío).
 - **Progreso**:
-  - *Mes*: entrenamientos y frecuencia, tiempo entrenado, minutos de cardio, récords nuevos, qué ejercicios mejoraron / se mantuvieron / bajaron
-    (mejor serie de la primera vs la última vez del mes) y series promedio por semana de cada grupo.
-  - *Semana*: series de cada grupo comparadas con el objetivo de 10 a 20 (bajo / bien / alto). Tocando un grupo ves qué ejercicios sumaron.
+  - *Mes*: entrenamientos y frecuencia, tiempo entrenado, minutos de cardio, récords nuevos, cuántos días del plan hiciste cada semana
+    y la **fuerza por ejercicio** (serie más pesada de la primera vs la última vez del mes: "▲ +7,5 kg", o en reps si el peso no cambió).
+  - *Semana*: qué días del plan hiciste y cuáles faltan (o quedaron sin entrenar), y qué músculos trabajaste
+    (solo el grupo principal de cada ejercicio). De los que no trabajaste dice hace cuánto fue la última vez.
   - *Ejercicios*: gráfico de peso máximo y fuerza estimada (1RM) de cada ejercicio, más su historial.
   - *Récords*: mejor marca de cada ejercicio.
   - *Peso* corporal.
 - **Más**: historial completo (se puede editar o borrar cualquier entrenamiento), tus ejercicios (nombre, tipo de peso,
   grupos musculares) y copia de seguridad en un archivo.
 
-### Cómo se cuentan las series por grupo
-Cada serie suma 1 a su grupo principal y ½ a cada grupo secundario. Ej.: 4 series de press banca = 4 de Pecho, 2 de Tríceps y 2 de Hombros.
+### Cómo se anota el peso
 En ejercicios de mancuerna se anota el peso de una; con barra, el peso total; en máquina o polea, el número de la máquina.
 
 ## Actualizar la app

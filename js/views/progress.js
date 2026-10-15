@@ -1,4 +1,4 @@
-// Pestaña "Progreso": resumen del mes, balance semanal, ejercicios, récords y peso corporal.
+// Pestaña "Progreso": resumen del mes, cumplimiento y músculos de la semana, ejercicios, récords y peso corporal.
 
 import { GROUPS, WEIGHT_TYPES } from '../data.js';
 import { state } from '../store.js';
@@ -6,7 +6,7 @@ import { save, remove } from '../db.js';
 import { esc, fmtDate, fmtNum, parseNum, parseDate, today, toast, confirmDialog, monthName, fmtDuration } from '../ui.js';
 import {
   exerciseHistory, loggedExerciseIds, records, fmtSets,
-  weekStart, addDays, groupSets, monthSummary, TARGET_MIN, TARGET_MAX,
+  weekStart, addDays, monthSummary, weekPlan, planWeeks, musclesWorked,
 } from '../stats.js';
 
 // Lo elegido en pantalla se recuerda mientras la app está abierta.
@@ -114,63 +114,33 @@ function lineChart(canvas, labels, datasets, fmt) {
   });
 }
 
-// --- Balance de series por grupo (compartido por Mes y Semana) ------------
+// --- Cumplimiento y músculos (compartido por Mes y Semana) ---------------
 
-function status(v) {
-  if (v === 0) return { cls: 'zero', label: '—' };
-  if (v < TARGET_MIN) return { cls: 'low', label: '↓ bajo' };
-  if (v > TARGET_MAX) return { cls: 'high', label: '↑ alto' };
-  return { cls: 'ok', label: '✓ bien' };
+function weekRange(from, to) {
+  const f = parseDate(from);
+  const t = parseDate(to);
+  return f.getMonth() === t.getMonth()
+    ? `${f.getDate()} al ${t.getDate()} ${monthName(t.getMonth())}`
+    : `${f.getDate()} ${monthName(f.getMonth())} al ${t.getDate()} ${monthName(t.getMonth())}`;
 }
 
-// field: 'total' (series de la semana) o 'perWeek' (promedio semanal del mes).
-function balanceHtml(groups, field) {
-  const max = Math.max(TARGET_MAX + 5, ...GROUPS.map((g) => groups[g][field]));
-  const pct = (v) => Math.min(100, (v / max) * 100);
-  return `
-    <div class="bal">
-      <div class="bal-grid bal-scale" aria-hidden="true">
-        <span></span>
-        <span class="bal-axis">
-          ${[0, TARGET_MIN, TARGET_MAX].map((t) => `<span style="left:${pct(t)}%">${t}</span>`).join('')}
-        </span>
-        <span></span><span></span>
-      </div>
-      ${GROUPS.map((g) => {
-        const row = groups[g];
-        const v = row[field];
-        const st = status(v);
-        const items = [...row.items.values()].sort((a, b) => b.sets - a.sets);
-        return `
-          <details class="bal-row">
-            <summary class="bal-grid">
-              <span class="bal-name">${esc(g)}</span>
-              <span class="bal-track">
-                <span class="bal-band" style="left:${pct(TARGET_MIN)}%;width:${pct(TARGET_MAX) - pct(TARGET_MIN)}%"></span>
-                <span class="bal-fill" style="width:${pct(v)}%"></span>
-              </span>
-              <span class="bal-val">${fmtNum(v, 1)}</span>
-              <span class="bal-status ${st.cls}">${st.label}</span>
-            </summary>
-            <div class="bal-items">
-              ${items.length ? items.map((it) => `
-                <div><span>${esc(it.name)}${it.secondary ? ' <small class="muted">(secundario)</small>' : ''}</span>
-                <span>${fmtNum(it.sets, 1)} series${field === 'perWeek' ? ' en el mes' : ''}</span></div>`).join('')
-                : '<p class="muted">Sin series.</p>'}
-            </div>
-          </details>`;
-      }).join('')}
-    </div>
-    <p class="note">Series: el grupo principal cuenta 1 y el secundario ½. Franja gris: objetivo de ${TARGET_MIN} a ${TARGET_MAX} series por semana. Tocá un grupo para ver los ejercicios.</p>`;
+function agoLabel(date, ref) {
+  const n = Math.round((parseDate(ref) - parseDate(date)) / 86400000);
+  return n === 0 ? 'hoy' : n === 1 ? 'ayer' : `hace ${n} días`;
 }
 
-function balanceCount(groups, field) {
-  const vals = GROUPS.map((g) => groups[g][field]);
-  return {
-    ok: vals.filter((v) => v >= TARGET_MIN && v <= TARGET_MAX).length,
-    low: vals.filter((v) => v < TARGET_MIN).length,
-    high: vals.filter((v) => v > TARGET_MAX).length,
-  };
+// Una fila por semana: días del plan hechos de los que tocaban.
+function weeksHtml(weeks) {
+  const current = weekStart(today());
+  return weeks.map((w) => {
+    const full = w.days.length && w.done === w.days.length;
+    const live = w.from === current;
+    return `
+      <div class="list-item week-row">
+        <span>${weekRange(w.from, w.to)}${live ? ' <small class="muted">(en curso)</small>' : ''}</span>
+        <span class="pct ${full ? 'up' : live ? '' : 'down'}">${w.done} de ${w.days.length}${full ? ' ✓' : ''}</span>
+      </div>`;
+  }).join('');
 }
 
 // --- Mes ----------------------------------------------------------------
@@ -186,15 +156,18 @@ function fmtSet(ex, s) {
   return `${fmtNum(s.w || 0, 2)}${ex.type === 'mancuerna' ? ' c/u' : ''} × ${s.r}`;
 }
 
-function pctBadge(p) {
-  const r = Math.round(p);
-  return `<span class="pct ${r > 0 ? 'up' : r < 0 ? 'down' : ''}">${r > 0 ? '▲ +' : r < 0 ? '▼ ' : ''}${r}%</span>`;
+// Diferencia entre la primera y la última vez: en kg si cambió el peso, si no en reps.
+function diffBadge(ex, a, b) {
+  const dw = (b.w || 0) - (a.w || 0);
+  const [v, unit] = dw ? [dw, ' kg'] : [b.r - a.r, ' reps'];
+  const cls = v > 0 ? 'up' : v < 0 ? 'down' : '';
+  return `<span class="pct ${cls}">${v > 0 ? '▲ +' : v < 0 ? '▼ −' : '= '}${v ? fmtNum(Math.abs(v), 2) + unit : 'igual'}</span>`;
 }
 
-function progressRows(list) {
+function strengthRows(list) {
   return list.map((r) => `
     <div class="list-item prog-row">
-      <div class="prog-top"><span>${esc(r.ex.name)}</span>${pctBadge(r.pct)}</div>
+      <div class="prog-top"><span>${esc(r.ex.name)}</span>${diffBadge(r.ex, r.first, r.last)}</div>
       <small class="muted">${fmtSet(r.ex, r.first)} (${fmtDate(r.firstDate)}) → ${fmtSet(r.ex, r.last)} (${fmtDate(r.lastDate)})</small>
     </div>`).join('');
 }
@@ -205,6 +178,8 @@ function renderMonth(body, container) {
   const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   const canPrev = key > oldestDate().slice(0, 7);
   const m = monthSummary(key);
+  const weeks = planWeeks(m.from, m.to);
+  const compared = [...m.improved, ...m.same, ...m.worse];
 
   body.innerHTML = `
     <div class="period-nav">
@@ -231,19 +206,17 @@ function renderMonth(body, container) {
         </div>`).join('')}
     </section>` : ''}
 
+    ${weeks.length ? `
     <section class="card list">
-      <h2 class="card-title">📈 Cómo te fue en el mes</h2>
-      ${m.improved.length ? `<h3 class="sub-title">Mejoraron (${m.improved.length})</h3>${progressRows(m.improved)}` : ''}
-      ${m.same.length ? `<h3 class="sub-title">Se mantuvieron (${m.same.length})</h3>${progressRows(m.same)}` : ''}
-      ${m.worse.length ? `<h3 class="sub-title">Bajaron (${m.worse.length})</h3>${progressRows(m.worse)}` : ''}
-      ${!m.improved.length && !m.same.length && !m.worse.length
-        ? '<p class="muted pad">Todavía no repetiste ningún ejercicio este mes.</p>' : ''}
-      <p class="note pad">Compara la mejor serie de la primera y la última vez que hiciste cada ejercicio en el mes (más peso o más reps suben el %).${m.once.length ? ` ${m.once.length} ejercicio${m.once.length > 1 ? 's' : ''} hecho${m.once.length > 1 ? 's' : ''} una sola vez no se compara${m.once.length > 1 ? 'n' : ''}.` : ''}</p>
-    </section>
+      <h2 class="card-title">📅 Días del plan por semana</h2>
+      ${weeksHtml(weeks)}
+      <p class="note pad">Semanas completas: ${weeks.filter((w) => w.days.length && w.done === w.days.length).length} de ${weeks.length}.</p>
+    </section>` : ''}
 
-    <section class="card">
-      <h2 class="card-title">Series por grupo <small class="muted">(promedio por semana)</small></h2>
-      ${balanceHtml(m.groups, 'perWeek')}
+    <section class="card list">
+      <h2 class="card-title">💪 Fuerza por ejercicio</h2>
+      ${compared.length ? strengthRows(compared) : '<p class="muted pad">Todavía no repetiste ningún ejercicio este mes.</p>'}
+      <p class="note pad">Compara la serie más pesada de la primera y la última vez que hiciste cada ejercicio en el mes.${m.once.length ? ` ${m.once.length} ejercicio${m.once.length > 1 ? 's' : ''} hecho${m.once.length > 1 ? 's' : ''} una sola vez no se compara${m.once.length > 1 ? 'n' : ''}.` : ''}</p>
     </section>`}`;
 
   body.querySelector('[data-prev]').onclick = () => { ui.monthOffset++; render(container); };
@@ -255,30 +228,50 @@ function renderMonth(body, container) {
 function renderWeek(body, container) {
   const from = addDays(weekStart(today()), -7 * ui.weekOffset);
   const to = addDays(from, 6);
+  const live = ui.weekOffset === 0;
   const canPrev = from > oldestDate();
-  const groups = groupSets(from, to);
-  const c = balanceCount(groups, 'total');
-  const f = parseDate(from);
-  const t = parseDate(to);
-  const range = f.getMonth() === t.getMonth()
-    ? `${f.getDate()} al ${t.getDate()} ${monthName(t.getMonth())}`
-    : `${f.getDate()} ${monthName(f.getMonth())} al ${t.getDate()} ${monthName(t.getMonth())}`;
-  const sessions = state.sessions.filter((s) => s.date >= from && s.date <= to).length;
+  const plan = weekPlan(from);
+  const muscles = musclesWorked(from, to);
+  const worked = GROUPS.filter((g) => muscles[g].days.size);
+  // Los que hace más que no entrenás, primero.
+  const rest = GROUPS.filter((g) => !muscles[g].days.size)
+    .sort((a, b) => (muscles[a].last || '').localeCompare(muscles[b].last || ''));
 
   body.innerHTML = `
     <div class="period-nav">
       <button class="icon-btn" data-prev ${canPrev ? '' : 'disabled'} aria-label="Semana anterior">‹</button>
-      <strong>${range}${ui.weekOffset === 0 ? ' <small class="muted">(en curso)</small>' : ''}</strong>
-      <button class="icon-btn" data-next ${ui.weekOffset === 0 ? 'disabled' : ''} aria-label="Semana siguiente">›</button>
+      <strong>${weekRange(from, to)}${live ? ' <small class="muted">(en curso)</small>' : ''}</strong>
+      <button class="icon-btn" data-next ${live ? 'disabled' : ''} aria-label="Semana siguiente">›</button>
     </div>
-    <div class="stat-tiles">
-      <div class="tile"><span class="tile-value">${sessions}</span><span class="tile-label">entrenamientos</span></div>
-      <div class="tile"><span class="tile-value">${c.ok}</span><span class="tile-label">grupos en rango</span></div>
-      <div class="tile"><span class="tile-value">${c.low}</span><span class="tile-label">grupos bajos</span></div>
-    </div>
-    <section class="card">
-      <h2 class="card-title">Series por grupo</h2>
-      ${balanceHtml(groups, 'total')}
+    <section class="card list">
+      <h2 class="card-title">📅 Días del plan <small class="muted">· ${plan.done} de ${plan.days.length}</small></h2>
+      ${plan.days.map(({ routine, dates }) => `
+        <div class="list-item week-row">
+          <span>${esc(routine.name)}</span>
+          ${dates.length
+            ? `<span class="pct up">✓ ${dates.map((d) => fmtDate(d, true)).join(', ')}</span>`
+            : `<span class="pct ${live ? '' : 'down'}">${live ? 'pendiente' : '✗ sin entrenar'}</span>`}
+        </div>`).join('') || '<p class="muted pad">No tenés rutinas en el plan.</p>'}
+      ${plan.extra.map((s) => `
+        <div class="list-item week-row">
+          <span>${esc(s.routineName || 'Entrenamiento')}</span>
+          <span class="pct">${fmtDate(s.date, true)}</span>
+        </div>`).join('')}
+    </section>
+    <section class="card list">
+      <h2 class="card-title">💪 Músculos trabajados</h2>
+      ${worked.map((g) => `
+        <div class="list-item week-row">
+          <span>${esc(g)}</span>
+          <span class="pct up">${muscles[g].days.size} ${muscles[g].days.size === 1 ? 'día' : 'días'}</span>
+        </div>`).join('') || '<p class="muted pad">Ninguno esta semana.</p>'}
+      ${rest.length ? `<h3 class="sub-title">Sin trabajar esta semana</h3>
+      ${rest.map((g) => `
+        <div class="list-item week-row">
+          <span class="muted">${esc(g)}</span>
+          <small class="muted">${muscles[g].last ? `última: ${agoLabel(muscles[g].last, live ? today() : to)}` : 'nunca'}</small>
+        </div>`).join('')}` : ''}
+      <p class="note pad">Cuenta solo el grupo principal de cada ejercicio.</p>
     </section>`;
 
   body.querySelector('[data-prev]').onclick = () => { ui.weekOffset++; render(container); };

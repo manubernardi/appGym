@@ -37,30 +37,44 @@ function sessionsBetween(from, to) {
   return state.sessions.filter((s) => s.date >= from && s.date <= to);
 }
 
-// --- Series por grupo ---------------------------------------------------
+// --- Cumplimiento del plan ----------------------------------------------
 
-export const TARGET_MIN = 10;
-export const TARGET_MAX = 20;
+// Días del plan en la semana que empieza el lunes `from`: las rutinas activas que ya existían esa semana
+// y cualquier otra rutina que hayas hecho. days: [{ routine, dates }]; extra: entrenamientos libres.
+export function weekPlan(from) {
+  const to = addDays(from, 6);
+  const sessions = sessionsBetween(from, to);
+  const routines = state.routines.filter((r) => sessions.some((s) => s.routineId === r.id)
+    || (!r.archived && (r.createdAt || '').slice(0, 10) <= to));
+  const days = routines.map((routine) => ({
+    routine,
+    dates: sessions.filter((s) => s.routineId === routine.id).map((s) => s.date).sort(),
+  }));
+  const extra = sessions.filter((s) => !routines.some((r) => r.id === s.routineId));
+  return { from, to, days, done: days.filter((d) => d.dates.length).length, extra };
+}
 
-// Series por grupo entre dos fechas (inclusive). El grupo principal suma 1 por serie
-// y cada secundario 0,5. items: ejercicios que aportaron a cada grupo.
-export function groupSets(from, to) {
-  const out = Object.fromEntries(GROUPS.map((g) => [g, { total: 0, items: new Map() }]));
-  const add = (g, ex, n, factor) => {
-    const row = out[g];
-    if (!row) return;
-    row.total += n * factor;
-    const it = row.items.get(ex.id) || { name: ex.name, sets: 0, secondary: factor < 1 };
-    it.sets += n * factor;
-    row.items.set(ex.id, it);
-  };
-  for (const session of sessionsBetween(from, to)) {
-    for (const entry of session.entries || []) {
-      const ex = state.exercises.get(entry.exerciseId);
-      const n = validSets(entry).length;
-      if (!ex || !n) continue;
-      add(ex.primary, ex, n, 1);
-      for (const g of ex.secondary || []) if (g !== ex.primary) add(g, ex, n, 0.5);
+// Semanas (lunes a domingo) que tocan el período, desde la primera en que entrenaste.
+export function planWeeks(from, to) {
+  const first = state.sessions.length ? weekStart(state.sessions[state.sessions.length - 1].date) : to;
+  const out = [];
+  for (let w = weekStart(from); w <= to; w = addDays(w, 7)) if (w >= first) out.push(weekPlan(w));
+  return out;
+}
+
+// --- Músculos trabajados ------------------------------------------------
+
+// Por grupo muscular (solo el principal de cada ejercicio): días que lo entrenaste entre from y to,
+// y la última vez que lo entrenaste hasta `to`.
+export function musclesWorked(from, to) {
+  const out = Object.fromEntries(GROUPS.map((g) => [g, { days: new Set(), last: null }]));
+  for (const s of state.sessions) {
+    if (s.date > to) continue;
+    for (const entry of s.entries || []) {
+      const row = out[state.exercises.get(entry.exerciseId)?.primary];
+      if (!row || !validSets(entry).length) continue;
+      if (s.date >= from) row.days.add(s.date);
+      if (!row.last || s.date > row.last) row.last = s.date;
     }
   }
   return out;
@@ -68,22 +82,7 @@ export function groupSets(from, to) {
 
 // --- Resumen del mes ----------------------------------------------------
 
-// Puntaje de una serie para comparar: fuerza estimada, o reps si es sin peso.
-function setScore(ex, s) {
-  if (WEIGHT_TYPES[ex.type]?.bodyweight) return s.r;
-  return e1rm(s.w, s.r);
-}
-
-function bestSet(ex, sets) {
-  let best = null;
-  for (const s of sets) {
-    const score = setScore(ex, s);
-    if (score > 0 && (!best || score > best.score)) best = { ...s, score };
-  }
-  return best;
-}
-
-// Récord: más peso que nunca, o el mismo peso con más reps (sin peso: más reps).
+// Más peso, o el mismo peso con más reps (sin peso: más reps). Sirve para récords y para comparar dos veces.
 function beats(ex, a, b) {
   if (WEIGHT_TYPES[ex.type]?.bodyweight) return a.r > b.r;
   const aw = a.w || 0;
@@ -147,18 +146,13 @@ export function monthSummary(monthKey) {
     if (prev && top && beats(ex, top, prev)) newRecords.push({ ex, set: top, prev, date: topDate });
 
     if (list.length < 2) { once.push({ ex }); continue; }
-    const first = bestSet(ex, list[0].sets);
-    const last = bestSet(ex, list[list.length - 1].sets);
-    if (!first || !last) { once.push({ ex }); continue; }
-    const pct = ((last.score - first.score) / first.score) * 100;
-    const row = { ex, first, last, pct, firstDate: list[0].date, lastDate: list[list.length - 1].date };
-    (pct > 1 ? improved : pct < -1 ? worse : same).push(row);
+    const first = topSet(ex, list[0].sets);
+    const last = topSet(ex, list[list.length - 1].sets);
+    const row = { ex, first, last, firstDate: list[0].date, lastDate: list[list.length - 1].date };
+    (beats(ex, last, first) ? improved : beats(ex, first, last) ? worse : same).push(row);
   }
-  improved.sort((a, b) => b.pct - a.pct);
-  worse.sort((a, b) => a.pct - b.pct);
-
-  const groups = groupSets(from, to);
-  for (const g of GROUPS) groups[g].perWeek = groups[g].total / weeks;
+  const byName = (a, b) => a.ex.name.localeCompare(b.ex.name, 'es');
+  [improved, same, worse].forEach((l) => l.sort(byName));
 
   return {
     from, to, weeks, inProgress: to !== end,
@@ -167,7 +161,7 @@ export function monthSummary(monthKey) {
     // Tiempo entrenado (segundos), de los entrenamientos que tienen duración.
     trainedSec: sessions.reduce((t, s) => t + (s.duration || 0), 0),
     trainingDays: new Set(sessions.map((s) => s.date)).size,
-    newRecords, improved, same, worse, once, groups,
+    newRecords, improved, same, worse, once,
   };
 }
 

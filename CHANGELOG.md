@@ -237,3 +237,24 @@ Antes la semana de cada día avanzaba solo cuando lo terminabas, así que si fal
 | [`js/views/train.js`](js/views/train.js) | `weekLabel` avisa cuando el entrenamiento recupera una semana. |
 | [`css/styles.css`](css/styles.css) | `.week-steps span.missed`. |
 | [`sw.js`](sw.js) | Caché `gimnasio-v10`. |
+
+## v11 — Estadísticas sin series por grupo (2026-10-15)
+
+Las series por grupo (con el ½ de los secundarios y el objetivo de 10 a 20) no decían nada útil y tenían demasiados números. Se reemplazan por:
+
+- **Semana → Días del plan**: cada día de tu plan con ✓ y la fecha en que lo hiciste, *pendiente* si la semana está en curso o *✗ sin entrenar* si ya terminó.
+  Abajo aparecen los entrenamientos libres o de rutinas que no son del plan.
+- **Semana → Músculos trabajados**: los grupos que entrenaste esa semana y cuántos días. Los que no, ordenados por hace cuánto no los entrenás
+  (*última: hace 9 días*). Cuenta solo el **grupo principal** de cada ejercicio.
+- **Mes → Días del plan por semana**: cada semana del mes con cuántos días del plan hiciste (*2 de 3*) y cuántas semanas quedaron completas.
+- **Mes → Fuerza por ejercicio** (en lugar de mejoraron / se mantuvieron / bajaron en %): la serie más pesada de la primera y la última vez del mes,
+  y cuánto cambió en **kg** (*▲ +7,5 kg*), o en reps si el peso fue el mismo.
+- Los días del plan de una semana son las rutinas activas que ya existían esa semana, más cualquier rutina que hayas hecho esa semana.
+
+### Cambios técnicos
+| Archivo | Cambio |
+|---|---|
+| [`js/stats.js`](js/stats.js) | `weekPlan`, `planWeeks` y `musclesWorked` reemplazan a `groupSets` (se van `TARGET_MIN`/`TARGET_MAX`). `monthSummary` compara con `topSet` (más peso) en lugar del 1RM en %, y ya no devuelve `groups`. |
+| [`js/views/progress.js`](js/views/progress.js) | Pestañas *Mes* y *Semana* rehechas; fuera `balanceHtml`. |
+| [`css/styles.css`](css/styles.css) | `.week-row`; fuera `.bal-*` y `--band`. |
+| [`sw.js`](sw.js) | Caché `gimnasio-v11`. |
