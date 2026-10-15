@@ -10,7 +10,7 @@ import {
 } from '../stats.js';
 
 // Lo elegido en pantalla se recuerda mientras la app está abierta.
-const ui = { tab: 'mes', monthOffset: 0, weekOffset: 0, exerciseId: null };
+const ui = { tab: 'mes', monthOffset: 0, weekOffset: 0, exerciseId: null, recGroup: null };
 let charts = [];
 
 const TABS = [['mes', 'Mes'], ['semana', 'Semana'], ['ejercicio', 'Ejercicios'], ['records', 'Récords'], ['peso', 'Peso']];
@@ -159,7 +159,7 @@ function fmtSet(ex, s) {
 // Diferencia entre la primera y la última vez: en kg si cambió el peso, si no en reps.
 function diffBadge(ex, a, b) {
   const dw = (b.w || 0) - (a.w || 0);
-  const [v, unit] = dw ? [dw, ' kg'] : [b.r - a.r, ' reps'];
+  const [v, unit] = dw ? [dw, ' kg'] : [b.r - a.r, Math.abs(b.r - a.r) === 1 ? ' rep' : ' reps'];
   const cls = v > 0 ? 'up' : v < 0 ? 'down' : '';
   return `<span class="pct ${cls}">${v > 0 ? '▲ +' : v < 0 ? '▼ −' : '= '}${v ? fmtNum(Math.abs(v), 2) + unit : 'igual'}</span>`;
 }
@@ -334,31 +334,64 @@ function renderExercise(body, container) {
 
 // --- Récords ------------------------------------------------------------
 
-function renderRecords(body) {
-  const recs = records();
-  body.innerHTML = GROUPS.map((g) => {
-    const list = recs.filter((r) => r.ex.primary === g).sort((a, b) => a.ex.name.localeCompare(b.ex.name, 'es'));
-    if (!list.length) return '';
-    return `
+// Marca de un récord: el número grande y las reps aparte.
+function recordValue(ex, set) {
+  if (WEIGHT_TYPES[ex.type]?.bodyweight && !set.w) return `<strong>${set.r}</strong> <small>reps</small>`;
+  return `<strong>${fmtNum(set.w || 0, 2)}</strong> <small>${ex.type === 'mancuerna' ? 'kg c/u' : 'kg'} × ${set.r}</small>`;
+}
+
+function recordRow(r) {
+  return `
+    <button class="list-item rec-row" data-ex="${r.ex.id}">
+      <span class="rec-info">
+        <span class="rec-name">${esc(r.ex.name)}</span>
+        <small class="muted">${agoLabel(r.date, today())}${r.prev ? ` · antes ${fmtSet(r.ex, r.prev)}` : ''}</small>
+      </span>
+      <span class="rec-val">${recordValue(r.ex, r.best)}</span>
+    </button>`;
+}
+
+function renderRecords(body, container) {
+  const recs = records().sort((a, b) => a.ex.name.localeCompare(b.ex.name, 'es'));
+  if (!recs.length) {
+    body.innerHTML = '<p class="muted center">Todavía no hay récords.</p>';
+    return;
+  }
+  const groups = GROUPS.filter((g) => recs.some((r) => r.ex.primary === g));
+  if (!groups.includes(ui.recGroup)) ui.recGroup = null;
+  // Récords que superaron a uno anterior en los últimos 30 días, el más nuevo primero.
+  const since = addDays(today(), -30);
+  const recent = recs.filter((r) => r.prev && r.date >= since).sort((a, b) => b.date.localeCompare(a.date));
+  const shown = ui.recGroup ? [ui.recGroup] : groups;
+
+  body.innerHTML = `
+    <div class="chips-scroll" role="tablist">
+      <button class="chip ${ui.recGroup ? '' : 'active'}" data-group="">Todos</button>
+      ${groups.map((g) => `<button class="chip ${ui.recGroup === g ? 'active' : ''}" data-group="${esc(g)}">${esc(g)}</button>`).join('')}
+    </div>
+    ${!ui.recGroup && recent.length ? `
+    <section class="card list rec-recent">
+      <h2 class="card-title">🏆 Nuevos en los últimos 30 días</h2>
+      ${recent.map((r) => `
+        <button class="list-item rec-row" data-ex="${r.ex.id}">
+          <span class="rec-info">
+            <span class="rec-name">${esc(r.ex.name)}</span>
+            <small class="muted">${fmtDate(r.date, true)} · ${diffBadge(r.ex, r.prev, r.best)}</small>
+          </span>
+          <span class="rec-val">${recordValue(r.ex, r.best)}</span>
+        </button>`).join('')}
+    </section>` : ''}
+    ${shown.map((g) => `
       <h2 class="section-title">${esc(g)}</h2>
-      <div class="card list">
-        ${list.map((r) => {
-          const bw = WEIGHT_TYPES[r.ex.type]?.bodyweight;
-          const unit = r.ex.type === 'mancuerna' ? 'kg c/u' : 'kg';
-          const main = bw && !r.maxW
-            ? `<strong>${r.maxReps.r} reps</strong> <small class="muted">${fmtDate(r.maxReps.date)}</small>`
-            : `<strong>${fmtNum(r.maxW.w, 2)} ${unit} × ${r.maxW.r}</strong> <small class="muted">${fmtDate(r.maxW.date)}</small>`;
-          const extra = !bw && r.bestE1rm
-            ? `<small class="muted">1RM est.: ${fmtNum(r.bestE1rm.value)} ${unit} (${fmtNum(r.bestE1rm.w, 2)}×${r.bestE1rm.r}, ${fmtDate(r.bestE1rm.date)})</small>`
-            : '';
-          return `<div class="list-item record">
-            <span>${esc(r.ex.name)}</span>
-            <span class="record-val">${main}</span>
-            ${extra}
-          </div>`;
-        }).join('')}
-      </div>`;
-  }).join('') || '<p class="muted center">Todavía no hay récords.</p>';
+      <div class="card list">${recs.filter((r) => r.ex.primary === g).map(recordRow).join('')}</div>`).join('')}
+    <p class="note">Récord: la serie con más peso (a igual peso, más reps; sin peso, más reps). Tocá un ejercicio para ver su evolución.</p>`;
+
+  body.querySelectorAll('[data-group]').forEach((b) => {
+    b.onclick = () => { ui.recGroup = b.dataset.group || null; render(container); };
+  });
+  body.querySelectorAll('[data-ex]').forEach((b) => {
+    b.onclick = () => { ui.exerciseId = b.dataset.ex; ui.tab = 'ejercicio'; render(container); window.scrollTo(0, 0); };
+  });
 }
 
 // --- Peso corporal ------------------------------------------------------

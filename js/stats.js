@@ -212,34 +212,22 @@ export function loggedExerciseIds() {
   return ids;
 }
 
-// Récords personales por ejercicio.
+// Récord de cada ejercicio: la serie más pesada (sin peso: más reps), cuándo fue y el récord que superó.
+// [{ ex, best: { w, r }, date, prev: { w, r } | null, prevDate }]
 export function records() {
   const out = new Map();
-  for (const session of state.sessions) {
+  for (const session of [...state.sessions].reverse()) {
     for (const entry of session.entries || []) {
       const ex = state.exercises.get(entry.exerciseId);
       if (!ex || isCardio(ex)) continue;
-      let rec = out.get(ex.id);
-      if (!rec) {
-        rec = { ex, maxW: null, bestE1rm: null, maxReps: null };
-        out.set(ex.id, rec);
-      }
-      for (const s of validSets(entry)) {
-        const w = s.w || 0;
-        if (w > 0 && (!rec.maxW || w > rec.maxW.w || (w === rec.maxW.w && s.r > rec.maxW.r))) {
-          rec.maxW = { w, r: s.r, date: session.date };
-        }
-        const e = e1rm(w, s.r);
-        if (e > 0 && (!rec.bestE1rm || e > rec.bestE1rm.value)) {
-          rec.bestE1rm = { value: e, w, r: s.r, date: session.date };
-        }
-        if (!rec.maxReps || s.r > rec.maxReps.r) {
-          rec.maxReps = { w, r: s.r, date: session.date };
-        }
-      }
+      const top = topSet(ex, validSets(entry));
+      if (!top) continue;
+      const rec = out.get(ex.id);
+      if (!rec) out.set(ex.id, { ex, best: top, date: session.date, prev: null, prevDate: null });
+      else if (beats(ex, top, rec.best)) Object.assign(rec, { prev: rec.best, prevDate: rec.date, best: top, date: session.date });
     }
   }
-  return [...out.values()].filter((r) => r.maxReps);
+  return [...out.values()];
 }
 
 export function fmtSets(sets, ex) {

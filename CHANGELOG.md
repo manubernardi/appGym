@@ -269,3 +269,19 @@ Las series por grupo (con el ½ de los secundarios y el objetivo de 10 a 20) no 
 - El service worker guardaba los archivos sin saltear la caché del navegador (GitHub Pages la deja 10 minutos), así que podía quedarse con el `plan.js` roto aunque ya estuviera arreglado.
   Ahora al instalar pide todo a la red (`cache: 'reload'`) y al actualizar en segundo plano revalida (`no-cache`).
 - Caché `gimnasio-v13` en [`sw.js`](sw.js).
+
+## v14 — Récords rediseñados (2026-10-15)
+
+- **Filtro por grupo** arriba (*Todos*, *Pecho*, *Espalda*…) en lugar de una lista larga con todos los grupos.
+- **Nuevos en los últimos 30 días**: los récords que superaron a uno anterior, con la fecha y cuánto mejoraron (*▲ +2,5 kg*, *▲ +1 rep*).
+- Cada ejercicio muestra la marca grande (*45* kg × 9), hace cuánto fue y el récord anterior (*antes 42,5 × 10*).
+- Tocando un ejercicio se abre su gráfico en *Ejercicios*.
+- Se sacó el 1RM estimado de los récords (sigue en el gráfico de cada ejercicio).
+
+### Cambios técnicos
+| Archivo | Cambio |
+|---|---|
+| [`js/stats.js`](js/stats.js) | `records()` devuelve `{ ex, best, date, prev, prevDate }` usando `topSet`/`beats` (antes `maxW`, `bestE1rm`, `maxReps`). |
+| [`js/views/progress.js`](js/views/progress.js) | `renderRecords` con chips de grupo (`ui.recGroup`), `recordRow` y `recordValue`; `diffBadge` dice *rep* en singular. |
+| [`css/styles.css`](css/styles.css) | `.rec-*`; fuera `.record-val`. |
+| [`sw.js`](sw.js) | Caché `gimnasio-v14`. |

@@ -206,7 +206,6 @@ label .input { margin-top: 4px; }
 .list-item.row { flex-direction: row; align-items: center; gap: 12px; }
 .list-item.row span { flex: 1; }
 .ex-list .list-item { border: 1px solid var(--border); border-radius: 10px; margin-bottom: 6px; background: var(--surface-1); }
-.record-val { font-size: .95rem; }
 
 .badge {
   display: inline-block;
@@ -528,6 +527,16 @@ legend { font-size: .9rem; color: var(--text-secondary); margin-bottom: 6px; }
   opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 100;
 }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* ---------- Récords ---------- */
+.rec-row { flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; }
+.rec-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.rec-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rec-val { flex: none; text-align: right; white-space: nowrap; }
+.rec-val strong { font-size: 1.25rem; font-variant-numeric: tabular-nums; }
+.rec-val small { color: var(--text-secondary); font-size: .8rem; }
+.rec-recent { box-shadow: inset 4px 0 0 var(--good); }
+.rec-recent .pct { font-size: .8rem; }
 
 /* ---------- Resumen del mes y de la semana ---------- */
 .week-row { flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; }

@@ -67,7 +67,8 @@ Desde esta carpeta: `npx serve .` (o cualquier servidor estático) y abrí `http
   - *Semana*: qué días del plan hiciste y cuáles faltan (o quedaron sin entrenar), y qué músculos trabajaste
     (solo el grupo principal de cada ejercicio). De los que no trabajaste dice hace cuánto fue la última vez.
   - *Ejercicios*: gráfico de peso máximo y fuerza estimada (1RM) de cada ejercicio, más su historial.
-  - *Récords*: mejor marca de cada ejercicio.
+  - *Récords*: la serie más pesada de cada ejercicio (sin peso: más reps), hace cuánto fue y el récord anterior. Filtro por grupo,
+    arriba los récords nuevos de los últimos 30 días y, tocando un ejercicio, su gráfico.
   - *Peso* corporal.
 - **Más**: historial completo (se puede editar o borrar cualquier entrenamiento), tus ejercicios (nombre, tipo de peso,
   grupos musculares) y copia de seguridad en un archivo.
