@@ -178,3 +178,42 @@ La zona media ahora tiene su propio color (naranja) en toda la app, así se dist
 | [`js/views/train.js`](js/views/train.js) | `buildPages` usa `coreRuns`; cartel, borde y etiqueta de zona media. |
 | [`css/styles.css`](css/styles.css) | Colores `--core` / `--core-soft` (claro y oscuro), `.core-block`, `.core-tag`, `.core-banner`, `.step.core`, `.entry.core`. Se sacaron `.page-kicker` y `.prog-tag.fixed`. |
 | [`sw.js`](sw.js) | Caché `gimnasio-v8`. |
+
+## v9 — Fuerza, zona media y cardio; cronómetro (2026-10-14)
+
+### Fuerza, zona media y cardio
+- Los ejercicios se separan en **tres categorías**, cada una con su color: **Fuerza** (azul), **Zona media** (naranja) y **Cardio** (violeta).
+- **Cardio** es un grupo nuevo en *Mis ejercicios*. Se agregan solos *Cinta*, *Bicicleta fija*, *Elíptico*, *Remo ergómetro*, *Escaladora* y *Soga*
+  (salvo los que ya tengas con ese nombre). Al crear un ejercicio de cardio no se pide tipo de peso ni grupos secundarios.
+  - Se anota en **minutos** y, si querés, **km** (en vez de kg y reps).
+  - No cuenta en las series por grupo muscular, en los récords ni en los gráficos de fuerza.
+  - Al leer el plan desde una foto, el cardio se reconoce y se guarda con sus minutos ("20'" → "20 min").
+- **Plan**: cada rutina muestra sus ejercicios en bloques por categoría, en el orden de la rutina, numerados dentro de cada bloque
+  (ej. *Cardio · 1 ejercicio*, *Fuerza · 6 ejercicios*, *Zona media · circuito de 3 ejercicios*).
+  Debajo del nombre dice, por ejemplo, *6 de fuerza · 3 de zona media · 1 de cardio*.
+  En *Editar* y en la revisión de la foto, la zona media y el cardio llevan su etiqueta.
+- **Entrenar**: fuerza va de a un ejercicio por página (con el título *Fuerza*). La zona media y el cardio seguidos van juntos en una página
+  con su cartel. Cada tarjeta, el segmento de la barra de arriba y la fila del resumen llevan el color de su categoría.
+
+### Cronómetro y duración
+- Al empezar un entrenamiento arranca un **cronómetro**, que se ve siempre abajo, entre *Anterior* y *Siguiente*.
+- Al tocar *Terminar entrenamiento* se guarda la **duración** ("¡Entrenamiento guardado! Duró 52 min").
+- La duración aparece en *Últimos entrenamientos*, en el *Historial* y arriba al abrir un entrenamiento guardado.
+  Ahí también se puede **corregir** (campo *Duración (minutos)* en el resumen), por ejemplo si te olvidaste de terminarlo.
+- *Progreso → Mes* suma **tiempo entrenado** y **minutos de cardio**.
+- Los entrenamientos de antes no tienen duración, y tampoco los que se cierran solos a las 6 horas: no se sabe cuánto duraron de verdad.
+
+### Cambios técnicos
+| Archivo | Cambio |
+|---|---|
+| [`js/data.js`](js/data.js) | `CARDIO`, `EXERCISE_GROUPS` (grupos + Cardio), tipo `cardio`, `exerciseCategory`, `CATEGORIES` y ejercicios iniciales de cardio. `GROUPS` sigue siendo solo los grupos musculares. |
+| [`js/db.js`](js/db.js) | Suma una vez los ejercicios de cardio a quien ya tenía la lista inicial (marca `cardioSeeded`). |
+| [`js/progression.js`](js/progression.js) | `itemCategory` y `categoryRuns` reemplazan a `isCoreItem` y `coreRuns`; `itemsLabel` cuenta por categoría. |
+| [`js/views/plan.js`](js/views/plan.js) | Bloques por categoría (`routineItems`) y etiquetas (`catTag`). |
+| [`js/views/train.js`](js/views/train.js) | `entryCategory`, páginas por categoría, series de cardio (minutos en `r`, km en `w`), cronómetro (`startClock`), `startedAt` y `duration` (segundos) en la sesión. |
+| [`js/stats.js`](js/stats.js) | Cardio fuera de récords, mejoras y gráficos; `cardioMin` y `trainedSec` en el resumen del mes; `fmtSets` muestra minutos y km. |
+| [`js/ui.js`](js/ui.js) | `fmtClock` y `fmtDuration`. |
+| [`js/views/exercises.js`](js/views/exercises.js), [`js/plan-import.js`](js/plan-import.js) | Cardio como grupo. |
+| [`js/views/more.js`](js/views/more.js), [`js/views/progress.js`](js/views/progress.js) | Duración en el historial; tiempo entrenado y cardio en el mes. |
+| [`css/styles.css`](css/styles.css) | Colores `--fuerza`, `--core`, `--cardio` (y `-soft`); clases `.cat-*` en lugar de `.core-*`; `.clock`; `[hidden]` siempre oculta. |
+| [`sw.js`](sw.js) | Caché `gimnasio-v9`. |

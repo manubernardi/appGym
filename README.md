@@ -45,16 +45,22 @@ Desde esta carpeta: `npx serve .` (o cualquier servidor estático) y abrí `http
   Revisás, corregís lo que haga falta y elegís cómo cargar cada día: como rutina nueva, *actualizando* una que ya tenés (mantiene la semana en la que vas) o no cargarlo. Las rutinas actuales que no se actualizan se archivan o se dejan, según elijas.
 - **Progresión semanal**: si la hoja trae la tabla *Progresión semanal* (columnas = progresión 1, 2, 3…; filas = semanas),
   cada ejercicio guarda su número de progresión (el `(n)` al lado del nombre; sin número = 1).
-  Los de **zona media** tienen sus propias series x reps ("Puente frontal 3*10") y quedan como **Fijo**: no siguen la tabla. En el plan y al entrenar se marcan en naranja, en un bloque aparte.
+  Los de **zona media** tienen sus propias series x reps ("Puente frontal 3*10") y quedan como **Fijo**: no siguen la tabla.
   La semana se cuenta **por día**: si terminaste el Día 1 dos veces, la próxima vez que lo hagas es la semana 3, aunque el Día 2 siga en la semana 2.
   Al empezar el entrenamiento, los objetivos y la cantidad de series salen de esa semana. Pasada la última semana de la tabla, se repite la última.
   Cuando cambia el plan, *Empezar plan nuevo* archiva las rutinas viejas (los registros se mantienen).
-- **Entrenar**: elegís la rutina y anotás kg y reps de cada serie. Cada ejercicio es una página que pasás deslizando o con *Anterior / Siguiente*
-  (los de zona media van juntos en una página); la barra de arriba muestra en verde los completos y al final está el resumen para terminar. Arriba de cada ejercicio ves lo que hiciste la última vez,
+- **Fuerza, zona media y cardio**: los ejercicios se separan en estas tres categorías, cada una con su color
+  (azul, naranja y violeta) en el plan y al entrenar. Cardio es un grupo más en *Mis ejercicios* (cinta, bici, elíptico…):
+  se anota en minutos y, si querés, km, y no cuenta en las series por grupo ni en los récords de fuerza.
+  Zona media = grupo Abdominales u objetivo *Fijo* en el plan.
+- **Entrenar**: elegís la rutina y anotás kg y reps de cada serie. Cada ejercicio de fuerza es una página que pasás deslizando o con *Anterior / Siguiente*
+  (los de zona media seguidos van juntos en una página, y lo mismo el cardio); la barra de arriba muestra en verde los completos y al final está el resumen para terminar. Arriba de cada ejercicio ves lo que hiciste la última vez,
   y los campos vacíos muestran esos valores en gris como referencia. Se guarda solo mientras escribís.
+  Abajo corre un **cronómetro** desde que empezaste; al terminar se guarda la duración, que se ve en el historial
+  (y se puede corregir al editar un entrenamiento).
   Si dejás un entrenamiento abierto sin terminarlo, a las 6 horas se cierra solo (se guarda si tiene series, se borra si está vacío).
 - **Progreso**:
-  - *Mes*: entrenamientos y frecuencia, récords nuevos, qué ejercicios mejoraron / se mantuvieron / bajaron
+  - *Mes*: entrenamientos y frecuencia, tiempo entrenado, minutos de cardio, récords nuevos, qué ejercicios mejoraron / se mantuvieron / bajaron
     (mejor serie de la primera vs la última vez del mes) y series promedio por semana de cada grupo.
   - *Semana*: series de cada grupo comparadas con el objetivo de 10 a 20 (bajo / bien / alto). Tocando un grupo ves qué ejercicios sumaron.
   - *Ejercicios*: gráfico de peso máximo y fuerza estimada (1RM) de cada ejercicio, más su historial.

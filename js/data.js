@@ -5,6 +5,11 @@ export const GROUPS = [
   'Cuádriceps', 'Isquiotibiales', 'Glúteos', 'Gemelos', 'Abdominales',
 ];
 
+// Cardio no es un grupo muscular: no cuenta en las series por grupo ni en los récords de fuerza.
+// Sus series se anotan como minutos (r) y km (w, opcional).
+export const CARDIO = 'Cardio';
+export const EXERCISE_GROUPS = [...GROUPS, CARDIO];
+
 // factor: multiplicador del peso anotado al calcular volumen.
 // bodyweight: no suma volumen (solo series/reps).
 export const WEIGHT_TYPES = {
@@ -12,7 +17,17 @@ export const WEIGHT_TYPES = {
   mancuerna: { label: 'Mancuerna (peso de una)',   short: 'kg c/u',   factor: 2 },
   maquina:   { label: 'Máquina / polea',           short: 'kg',       factor: 1 },
   corporal:  { label: 'Sin peso (solo reps)',      short: 'kg extra', factor: 1, bodyweight: true },
+  cardio:    { label: 'Cardio (minutos y km)',     short: 'km',       factor: 0, cardio: true },
 };
+
+// Fuerza, zona media (Abdominales) o cardio, según el grupo principal.
+export function exerciseCategory(ex) {
+  if (ex?.primary === CARDIO) return 'cardio';
+  if (ex?.primary === 'Abdominales') return 'core';
+  return 'fuerza';
+}
+
+export const CATEGORIES = { fuerza: 'Fuerza', core: 'Zona media', cardio: 'Cardio' };
 
 // [nombre, tipo, principal, secundarios]
 const SEED = [
@@ -92,6 +107,17 @@ const SEED = [
   ['Russian twist', 'corporal', 'Abdominales', []],
 ];
 
-export const SEED_EXERCISES = SEED.map(([name, type, primary, secondary]) => ({
-  name, type, primary, secondary,
-}));
+// Se agregaron después: a quien ya tenía la lista inicial se le suman los que no tenga (ver db.js).
+const SEED_CARDIO = [
+  ['Cinta', 'cardio', CARDIO, []],
+  ['Bicicleta fija', 'cardio', CARDIO, []],
+  ['Elíptico', 'cardio', CARDIO, []],
+  ['Remo ergómetro', 'cardio', CARDIO, []],
+  ['Escaladora', 'cardio', CARDIO, []],
+  ['Soga', 'cardio', CARDIO, []],
+];
+
+const toExercise = ([name, type, primary, secondary]) => ({ name, type, primary, secondary });
+export const SEED_CARDIO_EXERCISES = SEED_CARDIO.map(toExercise);
+
+export const SEED_EXERCISES = [...SEED, ...SEED_CARDIO].map(toExercise);

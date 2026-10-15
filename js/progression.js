@@ -6,6 +6,7 @@
 // La semana de cada rutina avanza con las veces que la terminaste; pasada la última, queda en la última.
 
 import { state } from './store.js';
+import { exerciseCategory, CATEGORIES } from './data.js';
 
 export const FIXED = 0;
 
@@ -29,31 +30,33 @@ export function currentWeek(routine) {
   return Math.min(done + 1, routine.progression.length);
 }
 
-// Zona media: en el plan tiene objetivo Fijo o su grupo principal es Abdominales
-// (así también cuentan los de rutinas cargadas antes de que existiera "Fijo").
-export function isCoreItem(routine, item) {
-  return (hasProgression(routine) && itemProg(item) === FIXED)
-    || state.exercises.get(item.exerciseId)?.primary === 'Abdominales';
+// Categoría del ejercicio de una rutina: 'fuerza', 'core' (zona media) o 'cardio'.
+// Cardio sale del grupo del ejercicio. Zona media: grupo Abdominales u objetivo Fijo en un plan con progresión
+// (los Fijo son el circuito de zona media de la hoja). También sirve para los ejercicios nuevos de la foto.
+export function itemCategory(routine, item) {
+  const cat = exerciseCategory(state.exercises.get(item.exerciseId) || item.newExercise);
+  if (cat === 'fuerza' && hasProgression(routine) && itemProg(item) === FIXED) return 'core';
+  return cat;
 }
 
-// "5 ejercicios + 3 de zona media"
+// "5 de fuerza · 3 de zona media · 1 de cardio" (solo fuerza: "5 ejercicios").
 export function itemsLabel(routine) {
   const items = routine?.items || [];
-  const core = items.filter((it) => isCoreItem(routine, it)).length;
-  const main = items.length - core;
-  return [
-    main || !core ? `${main} ejercicio${main === 1 ? '' : 's'}` : '',
-    core ? `${core} de zona media` : '',
-  ].filter(Boolean).join(' + ');
+  const counts = Object.fromEntries(Object.keys(CATEGORIES).map((c) => [c, 0]));
+  items.forEach((it) => { counts[itemCategory(routine, it)]++; });
+  if (counts.fuerza === items.length) return `${items.length} ejercicio${items.length === 1 ? '' : 's'}`;
+  return Object.entries(counts).filter(([, n]) => n)
+    .map(([c, n]) => `${n} de ${CATEGORIES[c].toLowerCase()}`).join(' · ');
 }
 
-// Agrupa los elementos seguidos de zona media: [{ core, idx: [índices] }, …].
-export function coreRuns(list, isCore) {
+// Agrupa los elementos seguidos de la misma categoría: [{ cat, idx: [índices] }, …].
+export function categoryRuns(list, catOf) {
   const runs = [];
   list.forEach((x, i) => {
+    const cat = catOf(x);
     const last = runs[runs.length - 1];
-    if (isCore(x) && last?.core) last.idx.push(i);
-    else runs.push({ core: isCore(x), idx: [i] });
+    if (last?.cat === cat) last.idx.push(i);
+    else runs.push({ cat, idx: [i] });
   });
   return runs;
 }

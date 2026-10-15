@@ -1,6 +1,6 @@
 // Selector de ejercicios y formulario para crear/editar ejercicios.
 
-import { GROUPS, WEIGHT_TYPES } from '../data.js';
+import { GROUPS, EXERCISE_GROUPS, WEIGHT_TYPES, CARDIO } from '../data.js';
 import { state } from '../store.js';
 import { save, remove } from '../db.js';
 import { esc, openModal, confirmDialog, toast } from '../ui.js';
@@ -31,13 +31,13 @@ export function renderExerciseList(container, onPick, { showCreate = true } = {}
       list.innerHTML = '<p class="muted center">No hay ejercicios que coincidan.</p>';
       return;
     }
-    list.innerHTML = GROUPS.map((g) => {
+    list.innerHTML = EXERCISE_GROUPS.map((g) => {
       const items = all.filter((e) => e.primary === g);
       if (!items.length) return '';
       return `<h3 class="list-title">${esc(g)}</h3>` + items.map((e) => `
         <button class="list-item" data-id="${e.id}">
           <span>${esc(e.name)}</span>
-          <small class="muted">${esc(WEIGHT_TYPES[e.type]?.short || '')}${e.secondary?.length ? ' · ' + esc(e.secondary.join(', ')) : ''}</small>
+          <small class="muted">${e.primary === CARDIO ? 'minutos y km' : esc(WEIGHT_TYPES[e.type]?.short || '')}${e.secondary?.length ? ' · ' + esc(e.secondary.join(', ')) : ''}</small>
         </button>`).join('');
     }).join('');
   };
@@ -72,19 +72,20 @@ export function openExerciseForm(ex = {}, onSaved, { draft = false } = {}) {
         <label>Nombre
           <input class="input" name="name" required value="${esc(ex.name || '')}" autocomplete="off">
         </label>
-        <label>Tipo de peso
+        <label data-type-field>Tipo de peso
           <select class="input" name="type">
-            ${Object.entries(WEIGHT_TYPES).map(([k, t]) =>
+            ${Object.entries(WEIGHT_TYPES).filter(([, t]) => !t.cardio).map(([k, t]) =>
               `<option value="${k}" ${ex.type === k ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}
           </select>
         </label>
         <label>Grupo principal
           <select class="input" name="primary" required>
             <option value="">Elegir…</option>
-            ${GROUPS.map((g) => `<option ${ex.primary === g ? 'selected' : ''}>${esc(g)}</option>`).join('')}
+            ${EXERCISE_GROUPS.map((g) => `<option ${ex.primary === g ? 'selected' : ''}>${esc(g)}</option>`).join('')}
           </select>
         </label>
-        <fieldset>
+        <p class="note" data-cardio-note hidden>Cardio: se anotan minutos y, si querés, km. No suma a los grupos musculares.</p>
+        <fieldset data-secondary-field>
           <legend>Grupos secundarios</legend>
           <div class="chips">
             ${GROUPS.map((g) => `
@@ -100,6 +101,15 @@ export function openExerciseForm(ex = {}, onSaved, { draft = false } = {}) {
         </div>
       </form>`;
     const form = body.querySelector('form');
+    // Con grupo Cardio no hay tipo de peso ni grupos secundarios.
+    const syncCardio = () => {
+      const cardio = form.elements.primary.value === CARDIO;
+      body.querySelector('[data-type-field]').hidden = cardio;
+      body.querySelector('[data-secondary-field]').hidden = cardio;
+      body.querySelector('[data-cardio-note]').hidden = !cardio;
+    };
+    form.elements.primary.addEventListener('change', syncCardio);
+    syncCardio();
     form.addEventListener('submit', (e) => {
       e.preventDefault();
       const fd = new FormData(form);
@@ -121,9 +131,9 @@ export function openExerciseForm(ex = {}, onSaved, { draft = false } = {}) {
       const data = {
         ...(editing ? { id: ex.id, createdAt: ex.createdAt } : {}),
         name,
-        type: fd.get('type'),
+        type: primary === CARDIO ? 'cardio' : fd.get('type'),
         primary,
-        secondary: fd.getAll('secondary').filter((g) => g !== primary),
+        secondary: primary === CARDIO ? [] : fd.getAll('secondary').filter((g) => g !== primary),
       };
       if (draft) {
         close();

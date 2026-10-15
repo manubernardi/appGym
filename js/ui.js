@@ -54,6 +54,21 @@ export function fmtKg(n) {
   return fmtNum(n, 0) + ' kg';
 }
 
+// Cronómetro: "12:05" o "1:02:05".
+export function fmtClock(ms) {
+  const t = Math.max(0, Math.floor(ms / 1000));
+  const p = (n) => String(n).padStart(2, '0');
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  return h ? `${h}:${p(m)}:${p(t % 60)}` : `${m}:${p(t % 60)}`;
+}
+
+// Duración guardada (segundos): "52 min" o "1 h 05 min".
+export function fmtDuration(sec) {
+  const m = Math.round((sec || 0) / 60);
+  return m >= 60 ? `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')} min` : `${m} min`;
+}
+
 let toastTimer;
 export function toast(msg) {
   const el = document.getElementById('toast');

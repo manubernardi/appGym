@@ -16,8 +16,12 @@
   --grid: #e6e5e1;
   --series-1: #2a78d6;
   --series-2: #eb6834;
+  --fuerza: #2a78d6;
+  --fuerza-soft: #e7f0fb;
   --core: #c2560f;
   --core-soft: #fbeee4;
+  --cardio: #7b4fd4;
+  --cardio-soft: #f1ebfc;
   --nav-h: 64px;
   --radius: 14px;
 }
@@ -40,8 +44,12 @@
     --grid: #2c2c29;
     --series-1: #3987e5;
     --series-2: #d95926;
+    --fuerza: #5b9cec;
+    --fuerza-soft: #1a2433;
     --core: #f08a4b;
     --core-soft: #2e221a;
+    --cardio: #ab8cf2;
+    --cardio-soft: #251f33;
   }
 }
 :root[data-theme="dark"] {
@@ -61,11 +69,16 @@
   --grid: #2c2c29;
   --series-1: #3987e5;
   --series-2: #d95926;
+  --fuerza: #5b9cec;
+  --fuerza-soft: #1a2433;
   --core: #f08a4b;
   --core-soft: #2e221a;
+  --cardio: #ab8cf2;
+  --cardio-soft: #251f33;
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 
 html { -webkit-text-size-adjust: 100%; }
 
@@ -279,7 +292,13 @@ label .input { margin-top: 4px; }
 }
 .pager-nav .btn { flex: 1; }
 .pager-nav .btn[hidden] { display: none; }
-.pager-count { flex: 0 0 auto; min-width: 64px; text-align: center; font-size: .9rem; color: var(--text-muted); }
+.pager-count {
+  flex: 0 0 auto; min-width: 72px;
+  display: flex; flex-direction: column; align-items: center; line-height: 1.2;
+  font-size: .85rem; color: var(--text-muted);
+}
+.clock { font-size: 1.15rem; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.duration-field { margin-top: 12px; }
 small.good { color: var(--good); font-weight: 600; }
 .menu-list .btn { margin-top: 8px; }
 
@@ -363,40 +382,47 @@ small.good { color: var(--good); font-weight: 600; }
 .archived { margin-top: 20px; }
 .archived .routine { margin-top: 10px; }
 
-/* ---------- Zona media (mismo color en el plan y al entrenar) ---------- */
-.core-tag {
-  display: inline-block; padding: 1px 7px; border-radius: 6px; vertical-align: middle;
-  font-size: .72rem; font-weight: 600; color: var(--core); background: var(--core-soft);
-}
-.routine-items .core-block {
-  display: block; padding: 0;
-  background: var(--core-soft); border-left: 4px solid var(--core);
-}
-.core-head {
-  padding: 10px 14px 4px 10px;
-  font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--core);
-}
-.core-head small { font-weight: 500; text-transform: none; letter-spacing: 0; }
-.core-block ul { list-style: none; margin: 0; padding: 0 0 4px; }
-.core-block li { padding: 8px 14px 8px 10px; border-bottom: none; }
-.core-dot { flex: none; width: 24px; display: inline-flex; justify-content: center; }
-.core-dot::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--core); }
-.core-block .target-pill { background: var(--surface-1); color: var(--core); }
-.routine-edit-row.core { border-left: 4px solid var(--core); padding-left: 10px; background: var(--core-soft); }
+/* ---------- Categorías: fuerza, zona media y cardio (mismos colores en el plan y al entrenar) ---------- */
+.cat-fuerza { --cat: var(--fuerza); --cat-soft: var(--fuerza-soft); }
+.cat-core { --cat: var(--core); --cat-soft: var(--core-soft); }
+.cat-cardio { --cat: var(--cardio); --cat-soft: var(--cardio-soft); }
 
-.step.core { background: var(--core-soft); box-shadow: inset 0 0 0 1px var(--core); }
-.step.core.done { background: var(--good); box-shadow: none; }
-.step.core.current { background: var(--core); box-shadow: none; }
-.core-banner {
+.cat-tag {
+  display: inline-block; padding: 1px 7px; border-radius: 6px; vertical-align: middle;
+  font-size: .72rem; font-weight: 600; color: var(--cat); background: var(--cat-soft);
+}
+.routine-items .cat-block { display: block; padding: 0; border-left: 4px solid var(--cat); }
+.cat-block.cat-core, .cat-block.cat-cardio { background: var(--cat-soft); }
+.cat-head {
+  padding: 10px 14px 2px 10px;
+  font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--cat);
+}
+.cat-head small { font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--text-muted); }
+.cat-block ul { list-style: none; margin: 0; padding: 0 0 4px; }
+.cat-block li { padding: 8px 14px 8px 10px; border-bottom: none; }
+.ex-num.cat-fuerza, .ex-num.cat-core, .ex-num.cat-cardio { background: var(--cat-soft); color: var(--cat); }
+.cat-core .ex-num, .cat-cardio .ex-num, .cat-core .target-pill, .cat-cardio .target-pill { background: var(--surface-1); color: var(--cat); }
+.routine-edit-row.cat-core, .routine-edit-row.cat-cardio {
+  border-left: 4px solid var(--cat); padding-left: 10px; background: var(--cat-soft);
+}
+
+.step.cat-core, .step.cat-cardio { background: var(--cat-soft); box-shadow: inset 0 0 0 1px var(--cat); }
+.step.cat-core.done, .step.cat-cardio.done { background: var(--good); box-shadow: none; }
+.step.cat-core.current, .step.cat-cardio.current { background: var(--cat); box-shadow: none; }
+.cat-banner {
   display: flex; flex-direction: column; gap: 2px;
   padding: 12px 14px; margin-bottom: 12px; border-radius: var(--radius);
-  background: var(--core-soft); border: 1px solid var(--core); border-left-width: 4px;
+  background: var(--cat-soft); border: 1px solid var(--cat); border-left-width: 4px;
 }
-.core-banner strong { font-size: 1.1rem; color: var(--core); }
-.core-banner small { color: var(--text-secondary); }
-.entry.core { border-left: 4px solid var(--core); }
-.entry.core .badge { background: var(--core-soft); color: var(--core); }
-.list-item.core { box-shadow: inset 4px 0 0 var(--core); }
+.cat-banner strong { font-size: 1.1rem; color: var(--cat); }
+.cat-banner small { color: var(--text-secondary); }
+.cat-kicker {
+  margin: 0 4px 8px; font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--fuerza);
+}
+.entry.cat-fuerza, .entry.cat-core, .entry.cat-cardio { border-left: 4px solid var(--cat); }
+.entry.cat-core .badge, .entry.cat-cardio .badge { background: var(--cat-soft); color: var(--cat); }
+.list-item.cat-fuerza, .list-item.cat-core, .list-item.cat-cardio { box-shadow: inset 4px 0 0 var(--cat); }
 .archived summary { cursor: pointer; color: var(--text-secondary); padding: 10px 0; }
 
 /* ---------- Ejercicios ---------- */

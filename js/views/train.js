@@ -1,20 +1,22 @@
 // Pestaña "Entrenar": elegir rutina, cargar series (kg y reps) y ver lo que hiciste la última vez.
-// El entrenamiento se recorre por páginas: un ejercicio por página (la zona media va junta) y al final el resumen.
+// El entrenamiento se recorre por páginas: un ejercicio de fuerza por página (la zona media y el cardio seguidos van juntos)
+// y al final el resumen. Mientras está en curso corre un cronómetro; al terminar se guarda la duración (segundos).
 // #entrenar           -> entrenamiento en curso o inicio
 // #entrenar/<id>      -> editar un entrenamiento guardado (desde el historial)
 
-import { WEIGHT_TYPES } from '../data.js';
+import { WEIGHT_TYPES, CATEGORIES, exerciseCategory } from '../data.js';
 import { state } from '../store.js';
 import { save, remove } from '../db.js';
-import { esc, today, fmtDate, parseNum, openModal, confirmDialog, toast } from '../ui.js';
+import { esc, today, fmtDate, parseNum, openModal, confirmDialog, toast, fmtClock, fmtDuration } from '../ui.js';
 import { lastTime, fmtSets, validSets } from '../stats.js';
 import { openExercisePicker } from './exercises.js';
-import { FIXED, hasProgression, itemProg, currentWeek, itemTarget, coreRuns, itemsLabel } from '../progression.js';
+import { FIXED, hasProgression, itemProg, currentWeek, itemTarget, categoryRuns, itemsLabel } from '../progression.js';
 
 let editing = null; // { session, fromHistory }
 let saveTimer = null;
 let page = 0;           // página visible del editor
 let pageSession = null; // sesión a la que corresponde `page` (al cambiar de sesión vuelve a la primera)
+let clockTimer = null;
 const STALE_HOURS = 6; // un entrenamiento abierto más tiempo que esto se cierra solo
 const closed = new Set(); // ids ya cerrados (hasta que llegue la actualización de Firestore)
 
@@ -87,7 +89,30 @@ export function onData(container, arg) {
 
 export function leave() {
   flush();
+  stopClock();
   editing = null;
+}
+
+// --- Cronómetro ----------------------------------------------------------
+
+// Actualiza cada segundo los [data-clock] con el tiempo desde que empezó el entrenamiento.
+// Se frena solo cuando ya no hay ninguno en pantalla.
+function startClock(session) {
+  stopClock();
+  const from = Date.parse(session.startedAt || session.createdAt);
+  const tick = () => {
+    const els = document.querySelectorAll('[data-clock]');
+    if (!els.length) { stopClock(); return; }
+    const text = fmtClock(Date.now() - from);
+    els.forEach((el) => { el.textContent = text; });
+  };
+  tick();
+  clockTimer = setInterval(tick, 1000);
+}
+
+function stopClock() {
+  clearInterval(clockTimer);
+  clockTimer = null;
 }
 
 // --- Inicio ------------------------------------------------------------
@@ -119,7 +144,7 @@ function renderHome(container) {
         ${recent.map((s) => `
           <a class="list-item" href="#entrenar/${s.id}">
             <span>${esc(s.routineName || 'Entrenamiento')}</span>
-            <small class="muted">${fmtDate(s.date, true)} · ${(s.entries || []).length} ej.</small>
+            <small class="muted">${fmtDate(s.date, true)}${s.duration ? ` · ⏱ ${fmtDuration(s.duration)}` : ''} · ${(s.entries || []).length} ej.</small>
           </a>`).join('')}
       </div>` : ''}`;
 
@@ -155,6 +180,7 @@ function start(container, routine) {
     week,
     finished: false,
     createdAt: new Date().toISOString(),
+    startedAt: new Date().toISOString(),
     entries,
   };
   session.id = save('sessions', session);
@@ -191,14 +217,25 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') flush();
 });
 
-// Zona media: los ejercicios seguidos de zona media van en una sola página.
-// Es zona media si en el plan tiene objetivo Fijo (marca `circuit`) o si su grupo principal es Abdominales
-// (así también se juntan los de rutinas cargadas antes de que existiera "Fijo").
-function isCore(en) {
-  return Boolean(en.circuit) || state.exercises.get(en.exerciseId)?.primary === 'Abdominales';
+// Categoría del ejercicio: cardio por su grupo; zona media si en el plan tiene objetivo Fijo (marca `circuit`)
+// o si su grupo principal es Abdominales (así también se juntan los de rutinas cargadas antes de que existiera "Fijo").
+function entryCategory(en) {
+  const cat = exerciseCategory(state.exercises.get(en.exerciseId));
+  return cat === 'fuerza' && en.circuit ? 'core' : cat;
 }
 
-const buildPages = (entries) => coreRuns(entries, isCore);
+// Fuerza: un ejercicio por página. Zona media y cardio: los seguidos, en una misma página.
+function buildPages(entries) {
+  return categoryRuns(entries, entryCategory)
+    .flatMap((run) => (run.cat === 'fuerza' ? run.idx.map((i) => ({ cat: run.cat, idx: [i] })) : [run]));
+}
+
+const pageBanner = (p) => (p.cat === 'core'
+  ? `<div class="cat-banner cat-core"><strong>Zona media</strong>
+      <small>Circuito de ${p.idx.length} ejercicio${p.idx.length === 1 ? '' : 's'} · hacelos seguidos</small></div>`
+  : p.cat === 'cardio'
+    ? `<div class="cat-banner cat-cardio"><strong>Cardio</strong><small>Anotá los minutos y, si querés, los km</small></div>`
+    : '<p class="cat-kicker">Fuerza</p>');
 
 const entryDone = (en) => en.sets.length > 0 && validSets(en).length === en.sets.length;
 
@@ -219,33 +256,36 @@ function renderEditor(container, opts = {}) {
         <h1>${esc(s.routineName || 'Entrenamiento')}${s.week ? ` <small class="muted">· semana ${s.week}</small>` : ''}</h1>
         <input class="input date-input" type="date" value="${s.date}" data-date>
       </div>
-      ${!hist ? '<span class="badge live">En curso</span>' : ''}
+      ${!hist ? '<span class="badge live">En curso</span>' : s.duration ? `<span class="badge">⏱ ${fmtDuration(s.duration)}</span>` : ''}
     </div>
     <div class="steps">
-      ${pages.map((p, k) => `<button class="step ${p.core ? 'core' : ''} ${p.idx.every((i) => entryDone(s.entries[i])) ? 'done' : ''}" data-go="${k}"
-        aria-label="${esc(p.core ? 'Zona media' : s.entries[p.idx[0]].name)}"></button>`).join('')}
+      ${pages.map((p, k) => `<button class="step cat-${p.cat} ${p.idx.every((i) => entryDone(s.entries[i])) ? 'done' : ''}" data-go="${k}"
+        aria-label="${esc(p.cat === 'fuerza' ? s.entries[p.idx[0]].name : CATEGORIES[p.cat])}"></button>`).join('')}
       <button class="step step-end" data-go="${pages.length}" aria-label="Resumen"></button>
     </div>
     <div class="pager">
       ${pages.map((p, k) => `
-        <div class="pager-page ${p.core ? 'core-page' : ''}" data-page="${k}">
-          ${p.core ? `
-            <div class="core-banner">
-              <strong>Zona media</strong>
-              <small>Circuito de ${p.idx.length} ejercicio${p.idx.length === 1 ? '' : 's'} · hacelos seguidos</small>
-            </div>` : ''}
+        <div class="pager-page" data-page="${k}">
+          ${pageBanner(p)}
           ${p.idx.map((i) => entryCard(s.entries[i], i, s.id)).join('')}
         </div>`).join('')}
       <div class="pager-page" data-page="${pages.length}">
         ${s.entries.length ? `
           <section class="card list">
             <h2 class="card-title">Resumen</h2>
-            ${s.entries.map((en, i) => `
-              <button class="list-item row ${isCore(en) ? 'core' : ''}" data-go="${pageOf(i)}">
-                <span>${esc(state.exercises.get(en.exerciseId)?.name || en.name)}${isCore(en) ? ' <span class="core-tag">Zona media</span>' : ''}</span>
+            ${s.entries.map((en, i) => {
+              const cat = entryCategory(en);
+              return `
+              <button class="list-item row cat-${cat}" data-go="${pageOf(i)}">
+                <span>${esc(state.exercises.get(en.exerciseId)?.name || en.name)}${cat === 'fuerza' ? '' : ` <span class="cat-tag cat-${cat}">${CATEGORIES[cat]}</span>`}</span>
                 <small class="${entryDone(en) ? 'good' : 'muted'}">${validSets(en).length}/${en.sets.length} series</small>
-              </button>`).join('')}
+              </button>`;
+            }).join('')}
           </section>` : '<p class="muted center">Agregá el primer ejercicio.</p>'}
+        ${hist ? `
+          <label class="duration-field">Duración (minutos)
+            <input class="input" data-duration inputmode="numeric" value="${s.duration ? Math.round(s.duration / 60) : ''}" placeholder="Sin registrar">
+          </label>` : ''}
         <button class="btn btn-block" data-add>+ Agregar ejercicio</button>
         <div class="session-actions">
           ${hist
@@ -257,7 +297,10 @@ function renderEditor(container, opts = {}) {
     </div>
     <div class="pager-nav">
       <button class="btn" data-prev>← Anterior</button>
-      <span class="pager-count" data-count></span>
+      <span class="pager-count">
+        ${hist ? '' : '<strong class="clock" data-clock aria-label="Tiempo de entrenamiento"></strong>'}
+        <small data-count></small>
+      </span>
       <button class="btn btn-primary" data-next></button>
     </div>`;
 
@@ -290,6 +333,7 @@ function renderEditor(container, opts = {}) {
   };
   pager.scrollLeft = page * pager.clientWidth;
   updateNav();
+  if (!hist) startClock(s);
   pager.addEventListener('scroll', () => {
     const k = Math.round(pager.scrollLeft / pager.clientWidth);
     if (k === page || k < 0 || k > pages.length) return;
@@ -310,6 +354,12 @@ function renderEditor(container, opts = {}) {
     scheduleSave();
   };
   container.querySelector('[data-back]')?.addEventListener('click', () => history.back());
+  container.querySelector('[data-duration]')?.addEventListener('change', (e) => {
+    const min = parseNum(e.target.value);
+    if (min > 0) s.duration = Math.round(min * 60);
+    else delete s.duration;
+    scheduleSave();
+  });
   container.querySelector('[data-add]').onclick = () => openExercisePicker((ex) => {
     s.entries.push(newEntry(ex));
     scheduleSave();
@@ -370,8 +420,14 @@ function entryCard(en, i, sessionId) {
   const ex = state.exercises.get(en.exerciseId);
   const type = WEIGHT_TYPES[ex?.type] || WEIGHT_TYPES.maquina;
   const last = lastTime(en.exerciseId, sessionId);
+  const cat = entryCategory(en);
+  const cardio = cat === 'cardio';
+  const wInput = (st, j) => `<input class="input num" data-i="${i}" data-j="${j}" data-f="w" inputmode="decimal"
+              value="${st.w ?? ''}" placeholder="${last?.sets[j]?.w ?? (type.bodyweight ? '0' : '')}" aria-label="${cardio ? 'Km' : 'Peso'} serie ${j + 1}">`;
+  const rInput = (st, j) => `<input class="input num" data-i="${i}" data-j="${j}" data-f="r" inputmode="numeric"
+              value="${st.r ?? ''}" placeholder="${last?.sets[j]?.r ?? ''}" aria-label="${cardio ? 'Minutos' : 'Reps'} serie ${j + 1}">`;
   return `
-    <section class="card entry ${isCore(en) ? 'core' : ''}" data-i="${i}">
+    <section class="card entry cat-${cat}" data-i="${i}">
       <div class="entry-head">
         <div class="grow">
           <h2>${esc(ex?.name || en.name)}</h2>
@@ -384,15 +440,13 @@ function entryCard(en, i, sessionId) {
         : '<span class="muted">Primera vez que lo registrás</span>'}</p>
       <div class="sets">
         <div class="set-row set-header">
-          <span>#</span><span>${esc(type.short)}</span><span>Reps</span><span></span>
+          ${cardio ? '<span>#</span><span>Min</span><span>Km</span><span></span>'
+            : `<span>#</span><span>${esc(type.short)}</span><span>Reps</span><span></span>`}
         </div>
         ${en.sets.map((st, j) => `
           <div class="set-row">
             <span class="set-num">${j + 1}</span>
-            <input class="input num" data-i="${i}" data-j="${j}" data-f="w" inputmode="decimal"
-              value="${st.w ?? ''}" placeholder="${last?.sets[j]?.w ?? (type.bodyweight ? '0' : '')}" aria-label="Peso serie ${j + 1}">
-            <input class="input num" data-i="${i}" data-j="${j}" data-f="r" inputmode="numeric"
-              value="${st.r ?? ''}" placeholder="${last?.sets[j]?.r ?? ''}" aria-label="Reps serie ${j + 1}">
+            ${cardio ? rInput(st, j) + wInput(st, j) : wInput(st, j) + rInput(st, j)}
             <button class="icon-btn small" data-del-set data-j="${j}" aria-label="Borrar serie">✕</button>
           </div>`).join('')}
       </div>
@@ -448,9 +502,11 @@ async function finish(container) {
   if (!(await confirmDialog('¿Terminar el entrenamiento? Las series vacías se descartan.', 'Terminar'))) return;
   cleanup(s);
   s.finished = true;
+  s.duration = Math.round((Date.now() - Date.parse(s.startedAt || s.createdAt)) / 1000);
+  stopClock();
   saveTimer = 1;
   flush();
   editing = null;
-  toast('¡Entrenamiento guardado! 💪');
+  toast(`¡Entrenamiento guardado! 💪 Duró ${fmtDuration(s.duration)}.`);
   renderHome(container);
 }

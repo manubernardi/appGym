@@ -1,6 +1,6 @@
 // Cálculos de evolución: series por grupo, resumen del mes, historial por ejercicio y récords.
 
-import { GROUPS, WEIGHT_TYPES } from './data.js';
+import { GROUPS, WEIGHT_TYPES, CARDIO } from './data.js';
 import { state } from './store.js';
 import { parseDate, toISODate, fmtNum } from './ui.js';
 
@@ -8,6 +8,9 @@ import { parseDate, toISODate, fmtNum } from './ui.js';
 export function validSets(entry) {
   return (entry.sets || []).filter((s) => s.r > 0);
 }
+
+// Cardio (minutos y km) no entra en récords ni en la evolución de fuerza.
+const isCardio = (ex) => ex?.primary === CARDIO;
 
 // Fuerza estimada (1RM, fórmula de Epley).
 export function e1rm(w, r) {
@@ -106,11 +109,13 @@ export function monthSummary(monthKey) {
 
   // Sesiones de cada ejercicio en el mes (en orden de fecha) y lo previo al mes.
   const perEx = new Map();
+  let cardioMin = 0;
   for (const s of [...sessions].reverse()) {
     for (const entry of s.entries || []) {
       const ex = state.exercises.get(entry.exerciseId);
       const sets = validSets(entry);
       if (!ex || !sets.length) continue;
+      if (isCardio(ex)) { cardioMin += sets.reduce((t, x) => t + x.r, 0); continue; }
       if (!perEx.has(ex.id)) perEx.set(ex.id, { ex, sessions: [] });
       perEx.get(ex.id).sessions.push({ date: s.date, sets });
     }
@@ -158,6 +163,9 @@ export function monthSummary(monthKey) {
   return {
     from, to, weeks, inProgress: to !== end,
     sessionCount: sessions.length,
+    cardioMin,
+    // Tiempo entrenado (segundos), de los entrenamientos que tienen duración.
+    trainedSec: sessions.reduce((t, s) => t + (s.duration || 0), 0),
     trainingDays: new Set(sessions.map((s) => s.date)).size,
     newRecords, improved, same, worse, once, groups,
   };
@@ -204,7 +212,7 @@ export function loggedExerciseIds() {
   const ids = new Set();
   for (const session of state.sessions) {
     for (const entry of session.entries || []) {
-      if (validSets(entry).length) ids.add(entry.exerciseId);
+      if (validSets(entry).length && !isCardio(state.exercises.get(entry.exerciseId))) ids.add(entry.exerciseId);
     }
   }
   return ids;
@@ -216,7 +224,7 @@ export function records() {
   for (const session of state.sessions) {
     for (const entry of session.entries || []) {
       const ex = state.exercises.get(entry.exerciseId);
-      if (!ex) continue;
+      if (!ex || isCardio(ex)) continue;
       let rec = out.get(ex.id);
       if (!rec) {
         rec = { ex, maxW: null, bestE1rm: null, maxReps: null };
@@ -241,6 +249,7 @@ export function records() {
 }
 
 export function fmtSets(sets, ex) {
+  if (isCardio(ex)) return sets.map((s) => `${s.r} min` + (s.w ? ` · ${fmtNum(s.w, 2)} km` : '')).join(' + ');
   const bw = ex && WEIGHT_TYPES[ex.type]?.bodyweight;
   return sets.map((s) => (s.w ? `${fmtNum(s.w, 2)}×${s.r}` : bw ? `${s.r} reps` : `—×${s.r}`)).join(' · ');
 }

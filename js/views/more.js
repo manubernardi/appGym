@@ -3,7 +3,7 @@
 
 import { state } from '../store.js';
 import { logout } from '../db.js';
-import { esc, fmtDate, parseDate, monthName, today } from '../ui.js';
+import { esc, fmtDate, parseDate, monthName, today, fmtDuration } from '../ui.js';
 import { renderExerciseList, openExerciseForm } from './exercises.js';
 
 let redrawList = null;
@@ -68,7 +68,7 @@ function renderHistory(container) {
           ${list.map((s) => `
             <a class="list-item" href="#entrenar/${s.id}">
               <span>${esc(s.routineName || 'Entrenamiento')}${s.finished ? '' : ' <span class="badge live">En curso</span>'}</span>
-              <small class="muted">${fmtDate(s.date, true)} · ${(s.entries || []).map((e) => esc(state.exercises.get(e.exerciseId)?.name || e.name)).join(', ')}</small>
+              <small class="muted">${fmtDate(s.date, true)}${s.duration ? ` · ⏱ ${fmtDuration(s.duration)}` : ''} · ${(s.entries || []).map((e) => esc(state.exercises.get(e.exerciseId)?.name || e.name)).join(', ')}</small>
             </a>`).join('')}
         </div>`;
     }).join('') || '<p class="muted center">Todavía no hay entrenamientos.</p>'}`;

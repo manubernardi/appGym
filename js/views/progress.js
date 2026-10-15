@@ -3,7 +3,7 @@
 import { GROUPS, WEIGHT_TYPES } from '../data.js';
 import { state } from '../store.js';
 import { save, remove } from '../db.js';
-import { esc, fmtDate, fmtNum, parseNum, parseDate, today, toast, confirmDialog, monthName } from '../ui.js';
+import { esc, fmtDate, fmtNum, parseNum, parseDate, today, toast, confirmDialog, monthName, fmtDuration } from '../ui.js';
 import {
   exerciseHistory, loggedExerciseIds, records, fmtSets,
   weekStart, addDays, groupSets, monthSummary, TARGET_MIN, TARGET_MAX,
@@ -217,6 +217,8 @@ function renderMonth(body, container) {
       <div class="tile"><span class="tile-value">${m.sessionCount}</span><span class="tile-label">entrenamientos</span></div>
       <div class="tile"><span class="tile-value">${fmtNum(m.sessionCount / m.weeks, 1)}</span><span class="tile-label">por semana</span></div>
       <div class="tile"><span class="tile-value">${m.newRecords.length}</span><span class="tile-label">récords nuevos</span></div>
+      ${m.trainedSec ? `<div class="tile"><span class="tile-value">${fmtDuration(m.trainedSec)}</span><span class="tile-label">entrenando</span></div>` : ''}
+      ${m.cardioMin ? `<div class="tile"><span class="tile-value">${fmtNum(m.cardioMin, 0)} min</span><span class="tile-label">de cardio</span></div>` : ''}
     </div>
 
     ${m.newRecords.length ? `

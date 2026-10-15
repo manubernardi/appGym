@@ -5,7 +5,7 @@
 import { getAI, getGenerativeModel, GoogleAIBackend, Schema } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-ai.js';
 
 import { app } from './db.js';
-import { GROUPS, WEIGHT_TYPES } from './data.js';
+import { EXERCISE_GROUPS, WEIGHT_TYPES, CARDIO } from './data.js';
 import { state } from './store.js';
 import { FIXED } from './progression.js';
 
@@ -41,8 +41,8 @@ const schema = Schema.object({
                 exerciseId: Schema.string({ description: 'id del ejercicio existente equivalente, o "" si no hay ninguno' }),
                 newName: Schema.string({ description: 'Solo si exerciseId es "": nombre claro para el ejercicio nuevo' }),
                 newType: Schema.enumString({ enum: Object.keys(WEIGHT_TYPES) }),
-                newPrimary: Schema.enumString({ enum: GROUPS, description: 'Obligatorio si exerciseId es "": grupo muscular principal' }),
-                newSecondary: Schema.array({ items: Schema.enumString({ enum: GROUPS }) }),
+                newPrimary: Schema.enumString({ enum: EXERCISE_GROUPS, description: 'Obligatorio si exerciseId es "": grupo muscular principal' }),
+                newSecondary: Schema.array({ items: Schema.enumString({ enum: EXERCISE_GROUPS }) }),
               },
               optionalProperties: ['newName', 'newType', 'newPrimary', 'newSecondary'],
             }),
@@ -79,6 +79,8 @@ Formato habitual del plan:
   La columna PAUSAS (P. MICRO, P. MACRO) no es una progresión: no la copies.
   La cantidad de semanas, la de progresiones y los valores de cada celda cambian de un plan a otro:
   copiá exactamente lo que dice la hoja, sin inventar ni completar celdas.
+- Puede haber CARDIO (cinta, bici, elíptico, remo, escaladora, soga…), con minutos en vez de series x reps:
+  prog = 0 y en "target" va lo escrito ("20'" = "20 min").
 - Si la hoja no tiene tabla, dejá "progression" vacío y poné en "target" las series x reps escritas al lado de cada ejercicio.
 
 Para cada ejercicio buscá el equivalente en esta lista (id | nombre | tipo | grupo principal).
@@ -95,9 +97,9 @@ Palabras que cambian el ejercicio aunque la hoja no nombre el implemento:
   Si no, NO lo asocies a la versión de dos lados: creá uno nuevo con el nombre de la versión normal + " unilateral",
   con el mismo tipo y grupos (ej. "Tríceps polea unilateral" → nuevo "Extensión de tríceps en polea unilateral").
 Solo si no hay ninguno equivalente dejá exerciseId vacío y completá SIEMPRE newName, newType, newPrimary y newSecondary
-(newPrimary nunca vacío; los de zona media / core van a "Abdominales").
+(newPrimary nunca vacío; los de zona media / core van a "Abdominales"; los de cardio van a "Cardio", con tipo cardio y sin secundarios).
 
-Tipos: barra = peso total de la barra; mancuerna = peso de una mancuerna; maquina = máquina o polea; corporal = sin peso.
+Tipos: barra = peso total de la barra; mancuerna = peso de una mancuerna; maquina = máquina o polea; corporal = sin peso; cardio = cardio (minutos).
 
 ${list}`;
 }
@@ -136,7 +138,8 @@ function clean(data) {
       name: (r.name || '').trim() || `Día ${i + 1}`,
       items: (r.items || []).map((it) => {
         const known = state.exercises.has(it.exerciseId);
-        const primary = GROUPS.includes(it.newPrimary) ? it.newPrimary : '';
+        const primary = EXERCISE_GROUPS.includes(it.newPrimary) ? it.newPrimary : '';
+        const cardio = primary === CARDIO;
         const own = (it.target || '').trim();
         const n = Math.round(Number(it.prog) || 0);
         // Con número sigue esa progresión; sin número pero con reps propias (zona media) es fijo; si no, la 1.
@@ -148,9 +151,9 @@ function clean(data) {
           exerciseId: known ? it.exerciseId : null,
           newExercise: known ? null : {
             name: (it.newName || it.written || '').trim(),
-            type: WEIGHT_TYPES[it.newType] ? it.newType : 'maquina',
+            type: cardio ? 'cardio' : WEIGHT_TYPES[it.newType] && it.newType !== 'cardio' ? it.newType : 'maquina',
             primary,
-            secondary: [...new Set(it.newSecondary || [])].filter((g) => GROUPS.includes(g) && g !== primary),
+            secondary: cardio ? [] : [...new Set(it.newSecondary || [])].filter((g) => EXERCISE_GROUPS.includes(g) && g !== primary && g !== CARDIO),
           },
         };
       }),
