@@ -1,0 +1,12 @@
+{
+  "name": "appgym",
+  "private": true,
+  "type": "module",
+  "description": "App de gimnasio (PWA). No tiene dependencias: package.json solo sirve para correr los tests.",
+  "scripts": {
+    "test": "node --test \"tests/*.test.mjs\""
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

@@ -292,3 +292,12 @@ Las series por grupo (con el ½ de los secundarios y el objetivo de 10 a 20) no 
   Antes mostraba solo los kg. Aplica en *Récords* y en *Mes → Fuerza por ejercicio*.
 - Sube o baja según el peso; a igual peso, según las reps.
 - Archivos: [`js/views/progress.js`](js/views/progress.js) (`diffBadge`), [`sw.js`](sw.js) (caché `gimnasio-v15`).
+
+## Tests automáticos (2026-10-15)
+
+No cambia la app (no sube la versión de la caché).
+
+- `npm test` corre 26 tests con el test runner de Node, sin dependencias: semanas del plan, estadísticas, récords y una prueba de humo que carga todos los módulos y dibuja cada pantalla.
+  Comprobado: el error de `plan.js` de la v10 y un error en la recuperación de semanas hacen fallar los tests.
+- Hook [`.githooks/pre-push`](.githooks/pre-push): corre los tests antes de cada push y frena si cambiaron archivos de la app sin cambiar `CACHE` en `sw.js`. Se activa con `git config core.hooksPath .githooks`.
+- Archivos nuevos: [`package.json`](package.json) (solo para `npm test`), [`tests/`](tests/), [`.githooks/pre-push`](.githooks/pre-push).

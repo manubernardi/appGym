@@ -1,0 +1,28 @@
+#!/bin/sh
+# Antes de cada push: corre los tests y revisa que se haya subido la versión de la caché.
+# Se activa una vez por clon con:  git config core.hooksPath .githooks
+# Para saltearlo en una emergencia:  git push --no-verify
+
+set -e
+
+echo "pre-push: corriendo los tests..."
+if ! npm test --silent > .git/test-output.txt 2>&1; then
+  grep -E "^not ok|error:|expected|actual" .git/test-output.txt | head -40
+  echo "pre-push: fallaron los tests (detalle completo en .git/test-output.txt). No se sube nada."
+  exit 1
+fi
+echo "pre-push: tests OK"
+
+# Si cambió algún archivo de la app respecto de lo ya subido, CACHE en sw.js tiene que cambiar también
+# (si no, el teléfono sigue con la versión vieja).
+upstream=$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)
+if [ -n "$upstream" ]; then
+  changed=$(git diff --name-only "$upstream"..HEAD -- js css index.html manifest.webmanifest icons)
+  cache_changed=$(git diff "$upstream"..HEAD -- sw.js | grep -E "^\+const CACHE" || true)
+  if [ -n "$changed" ] && [ -z "$cache_changed" ]; then
+    echo "pre-push: cambiaron archivos de la app pero no la versión de CACHE en sw.js:"
+    echo "$changed" | sed 's/^/  /'
+    echo "Subí el número (ej. gimnasio-v15 -> gimnasio-v16) y volvé a intentar."
+    exit 1
+  fi
+fi

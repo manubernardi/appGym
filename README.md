@@ -78,4 +78,24 @@ En ejercicios de mancuerna se anota el peso de una; con barra, el peso total; en
 
 ## Actualizar la app
 Anotá los cambios en [`CHANGELOG.md`](CHANGELOG.md). Después de cambiar archivos, subí el número de `CACHE` en [`sw.js`](sw.js) (`gimnasio-v2`, …).
+
+### Tests
+Hace falta Node 22 o más nuevo (no hay dependencias que instalar). Correlos con:
+
+```sh
+npm test
+```
+
+- [`tests/progression.test.mjs`](tests/progression.test.mjs): semanas del plan (calendario, sin entrenar, recuperar).
+- [`tests/stats.test.mjs`](tests/stats.test.mjs): días del plan, músculos trabajados, fuerza del mes y récords.
+- [`tests/app.test.mjs`](tests/app.test.mjs): carga todos los módulos y dibuja cada pantalla con datos de ejemplo (Firebase y el DOM son de mentira,
+  ver [`tests/support/`](tests/support/)). Atrapa errores de sintaxis o de imports que dejarían la app trabada en "cargando",
+  y revisa que [`sw.js`](sw.js) tenga en `APP_FILES` todos los archivos de `js/`.
+
+Una vez por clon, activá el hook que corre los tests antes de cada `git push` y frena el push si cambiaste archivos de la app
+sin subir la versión de `CACHE`:
+
+```sh
+git config core.hooksPath .githooks
+```
 El teléfono toma la versión nueva la segunda vez que abrís la app.
