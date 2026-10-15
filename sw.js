@@ -2,7 +2,7 @@
 // Los datos los maneja Firestore con su propia caché offline.
 // Al publicar cambios, subí el número de versión para forzar la actualización.
 
-const CACHE = 'gimnasio-v12';
+const CACHE = 'gimnasio-v13';
 const APP_FILES = [
   './',
   './index.html',
@@ -27,7 +27,10 @@ const APP_FILES = [
 const CDN_HOSTS = ['www.gstatic.com', 'cdn.jsdelivr.net'];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(APP_FILES)).then(() => self.skipWaiting()));
+  // cache: 'reload' saltea la caché HTTP del navegador (GitHub Pages la deja 10 minutos): si no, podía guardar archivos viejos.
+  e.waitUntil(caches.open(CACHE)
+    .then((c) => c.addAll(APP_FILES.map((f) => new Request(f, { cache: 'reload' }))))
+    .then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => {
@@ -50,7 +53,7 @@ self.addEventListener('fetch', (e) => {
   e.respondWith(
     caches.open(CACHE).then(async (cache) => {
       const cached = await cache.match(req, { ignoreSearch: sameOrigin });
-      const network = fetch(req)
+      const network = fetch(sameOrigin ? req.url : req, sameOrigin ? { cache: 'no-cache' } : undefined)
         .then((res) => {
           if (res.ok) cache.put(req, res.clone());
           return res;

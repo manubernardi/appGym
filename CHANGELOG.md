@@ -263,3 +263,9 @@ Las series por grupo (con el ½ de los secundarios y el objetivo de 10 a 20) no 
 
 - En la v10 la barra de semanas del *Plan* quedó con un error de sintaxis en [`js/views/plan.js`](js/views/plan.js) (`weekBar` sin cerrar) y la app no terminaba de cargar.
 - Caché `gimnasio-v12` en [`sw.js`](sw.js) para que el teléfono baje el arreglo.
+
+## v13 — La actualización no llegaba al teléfono (2026-10-15)
+
+- El service worker guardaba los archivos sin saltear la caché del navegador (GitHub Pages la deja 10 minutos), así que podía quedarse con el `plan.js` roto aunque ya estuviera arreglado.
+  Ahora al instalar pide todo a la red (`cache: 'reload'`) y al actualizar en segundo plano revalida (`no-cache`).
+- Caché `gimnasio-v13` en [`sw.js`](sw.js).
