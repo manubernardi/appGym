@@ -258,3 +258,8 @@ Las series por grupo (con el ½ de los secundarios y el objetivo de 10 a 20) no 
 | [`js/views/progress.js`](js/views/progress.js) | Pestañas *Mes* y *Semana* rehechas; fuera `balanceHtml`. |
 | [`css/styles.css`](css/styles.css) | `.week-row`; fuera `.bal-*` y `--band`. |
 | [`sw.js`](sw.js) | Caché `gimnasio-v11`. |
+
+## v12 — Arreglo: la app se quedaba cargando (2026-10-15)
+
+- En la v10 la barra de semanas del *Plan* quedó con un error de sintaxis en [`js/views/plan.js`](js/views/plan.js) (`weekBar` sin cerrar) y la app no terminaba de cargar.
+- Caché `gimnasio-v12` en [`sw.js`](sw.js) para que el teléfono baje el arreglo.

@@ -139,7 +139,8 @@ function weekBar(r, st) {
     <div class="week-bar">
       <div class="week-bar-label">Semana <strong>${st.now}</strong> de ${r.progression.length}${notes ? ` · ${notes}` : ''}</div>
       <div class="week-steps">${r.progression.map((_, i) => `<span class="${cls(i + 1)}"></span>`).join('')}</div>
-    </div>
+    </div>`;
+}
 
 // Etiqueta de zona media o cardio (fuerza es lo normal y no lleva).
 function catTag(cat) {
