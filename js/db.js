@@ -3,7 +3,7 @@
 // Firestore las aplica al instante en la caché local y las sube cuando hay conexión.
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js';
-import { initializeAppCheck, ReCaptchaV3Provider } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app-check.js';
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app-check.js';
 import {
   getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect,
   onAuthStateChanged, signOut,
@@ -25,7 +25,7 @@ export const app = initializeApp(firebaseConfig);
 // y hay que registrarlo en Firebase → App Check → Apps → Administrar tokens de depuración.
 if (appCheckSiteKey && typeof location !== 'undefined') {
   if (['localhost', '127.0.0.1'].includes(location.hostname)) self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
-  initializeAppCheck(app, { provider: new ReCaptchaV3Provider(appCheckSiteKey), isTokenAutoRefreshEnabled: true });
+  initializeAppCheck(app, { provider: new ReCaptchaEnterpriseProvider(appCheckSiteKey), isTokenAutoRefreshEnabled: true });
 }
 const auth = getAuth(app);
 const fs = initializeFirestore(app, {

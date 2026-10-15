@@ -30,10 +30,12 @@ Usa el modelo `gemini-3.8-flash` (y `gemini-3.5-flash-lite` si el primero no est
 Hace que solo tu app pueda usar Firestore y Gemini con la configuración del proyecto (que es pública). Sin App Check,
 cualquiera que copie [`js/firebase-config.js`](js/firebase-config.js) podría gastar tu cupo de Gemini.
 
-1. Creá una clave en https://www.google.com/recaptcha/admin → **reCAPTCHA v3**, dominios `TU-USUARIO.github.io` y `localhost`.
-   Te da una *clave del sitio* y una *clave secreta*.
-2. Firebase → **App Check** → *Apps* → tu app web → **reCAPTCHA** → pegá la **clave secreta** → Guardar.
-3. Pegá la **clave del sitio** en `appCheckSiteKey` en [`js/firebase-config.js`](js/firebase-config.js), subí la versión de `CACHE` y publicá.
+1. Firebase → **App Check** → *Apps* → tu app web → **Fraud Defense (antes reCAPTCHA Enterprise)**.
+   Si pide una clave del sitio: Google Cloud (mismo proyecto) → **Seguridad → Fraud Defense / reCAPTCHA** → *Crear clave* →
+   plataforma **Web**, dominios `TU-USUARIO.github.io` y `localhost`, **sin** desafío de casilla. No hay clave secreta.
+   (reCAPTCHA v3 "Classic" también funciona pero Firebase lo marca como obsoleto.)
+2. Guardá en App Check con esa clave del sitio.
+3. Pegá la misma clave en `appCheckSiteKey` en [`js/firebase-config.js`](js/firebase-config.js), subí la versión de `CACHE` y publicá.
 4. Esperá un día o dos y mirá en Firebase → App Check → *APIs* que casi todos los pedidos aparezcan como **verificados**
    (si activás la exigencia antes, las versiones viejas de la app que todavía tengan los teléfonos dejan de funcionar).
 5. Activá **Aplicar / Enforce** primero en **Firebase AI Logic** (Gemini) y después en **Cloud Firestore**.
