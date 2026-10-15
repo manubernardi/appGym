@@ -11,7 +11,10 @@ Funciona sin internet en el gimnasio y sincroniza con Firebase cuando hay conexi
 2. **Authentication** → *Comenzar* → *Método de acceso* → habilitá **Google**.
 3. **Firestore Database** → *Crear base de datos* → ubicación `southamerica-east1` (o la más cercana) →
    *Iniciar en modo de producción*.
-4. En Firestore → pestaña **Reglas**, reemplazá todo por el contenido de [`firestore.rules`](firestore.rules) y tocá **Publicar**.
+4. En Firestore → pestaña **Reglas**, reemplazá todo por el contenido de [`firestore.rules`](firestore.rules) y tocá **Publicar**
+   (o desde la PC: `npx firebase login` una vez y después `npm run deploy:rules`).
+   Las reglas, además de que cada uno vea solo lo suyo, validan la forma y el tamaño de lo que se guarda.
+   **Cada vez que cambies `firestore.rules`, volvé a publicarlas** (subir el código a GitHub no las actualiza).
 5. Configuración del proyecto (⚙️) → *Tus apps* → ícono **web `</>`** → registrá la app (sin Hosting).
    Copiá los valores de `firebaseConfig` y pegalos en [`js/firebase-config.js`](js/firebase-config.js).
 
@@ -22,6 +25,21 @@ El plan gratuito (Spark) no pide tarjeta y sobra para uso personal.
 2. Elegí **Gemini Developer API** (la gratuita, no pide tarjeta) y confirmá. Esto habilita la API y crea la clave sola: no hay que pegar nada en la app.
 
 Usa el modelo `gemini-3.8-flash` (y `gemini-3.5-flash-lite` si el primero no está). Si Google los retira, cambiá la lista `MODELS` en [`js/plan-import.js`](js/plan-import.js).
+
+### 1c. App Check (recomendado si la usa más gente)
+Hace que solo tu app pueda usar Firestore y Gemini con la configuración del proyecto (que es pública). Sin App Check,
+cualquiera que copie [`js/firebase-config.js`](js/firebase-config.js) podría gastar tu cupo de Gemini.
+
+1. Creá una clave en https://www.google.com/recaptcha/admin → **reCAPTCHA v3**, dominios `TU-USUARIO.github.io` y `localhost`.
+   Te da una *clave del sitio* y una *clave secreta*.
+2. Firebase → **App Check** → *Apps* → tu app web → **reCAPTCHA** → pegá la **clave secreta** → Guardar.
+3. Pegá la **clave del sitio** en `appCheckSiteKey` en [`js/firebase-config.js`](js/firebase-config.js), subí la versión de `CACHE` y publicá.
+4. Esperá un día o dos y mirá en Firebase → App Check → *APIs* que casi todos los pedidos aparezcan como **verificados**
+   (si activás la exigencia antes, las versiones viejas de la app que todavía tengan los teléfonos dejan de funcionar).
+5. Activá **Aplicar / Enforce** primero en **Firebase AI Logic** (Gemini) y después en **Cloud Firestore**.
+
+Para probar en `localhost` con App Check exigido: la consola del navegador muestra un *token de depuración* la primera vez;
+registralo en App Check → tu app → ⋮ → **Administrar tokens de depuración**.
 
 ### 2. Publicar en GitHub Pages
 1. Creá un repositorio en GitHub (por ejemplo `gimnasio`). Puede ser público: los datos no están en el código, sino en Firebase protegidos por tu login.
@@ -91,6 +109,10 @@ npm test
 - [`tests/app.test.mjs`](tests/app.test.mjs): carga todos los módulos y dibuja cada pantalla con datos de ejemplo (Firebase y el DOM son de mentira,
   ver [`tests/support/`](tests/support/)). Atrapa errores de sintaxis o de imports que dejarían la app trabada en "cargando",
   y revisa que [`sw.js`](sw.js) tenga en `APP_FILES` todos los archivos de `js/`.
+
+- [`tests/rules/rules.test.mjs`](tests/rules/rules.test.mjs): las reglas de Firestore en el emulador (lo que la app guarda tiene que pasar;
+  datos de otro usuario, colecciones inventadas o documentos gigantes no). Necesita Java y las dependencias de desarrollo:
+  `npm install` una vez y después `npm run test:rules`. No corre en el hook porque tarda (levanta el emulador).
 
 Una vez por clon, activá el hook que corre los tests antes de cada `git push` y frena el push si cambiaste archivos de la app
 sin subir la versión de `CACHE`:

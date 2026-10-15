@@ -9,3 +9,8 @@ export const firebaseConfig = {
   messagingSenderId: '931985524020',
   appId: '1:931985524020:web:0ae51a0e958e848bb45161',
 };
+
+// App Check: clave del sitio de reCAPTCHA v3 (https://www.google.com/recaptcha/admin, dominio manubernardi.github.io).
+// Hace que solo esta app pueda usar Firestore y Gemini del proyecto. Vacía = App Check apagado.
+// Tampoco es secreta. Pasos para activarlo en el README ("App Check").
+export const appCheckSiteKey = '';

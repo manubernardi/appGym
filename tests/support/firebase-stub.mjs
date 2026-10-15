@@ -16,7 +16,7 @@ export const getDocs = () => Promise.resolve({ docs: [] });
 export const writeBatch = () => ({ set: noop, commit: resolved });
 
 export {
-  noop as initializeApp,
+  noop as initializeApp, noop as initializeAppCheck, Noop as ReCaptchaV3Provider,
   noop as getAuth, Noop as GoogleAuthProvider, resolved as signInWithPopup, resolved as signInWithRedirect,
   noop as onAuthStateChanged, resolved as signOut,
   noop as initializeFirestore, noop as persistentLocalCache, noop as persistentMultipleTabManager,

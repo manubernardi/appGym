@@ -301,3 +301,18 @@ No cambia la app (no sube la versión de la caché).
   Comprobado: el error de `plan.js` de la v10 y un error en la recuperación de semanas hacen fallar los tests.
 - Hook [`.githooks/pre-push`](.githooks/pre-push): corre los tests antes de cada push y frena si cambiaron archivos de la app sin cambiar `CACHE` en `sw.js`. Se activa con `git config core.hooksPath .githooks`.
 - Archivos nuevos: [`package.json`](package.json) (solo para `npm test`), [`tests/`](tests/), [`.githooks/pre-push`](.githooks/pre-push).
+
+## v16 — App Check y validaciones en las reglas (2026-10-15)
+
+Preparación para que la use más gente.
+
+- **Reglas de Firestore con validaciones** ([`firestore.rules`](firestore.rules)): además de que cada usuario vea solo lo suyo, ahora
+  - solo se puede escribir en `exercises`, `routines`, `sessions` y `bodyweight` (nada de colecciones inventadas ni subcolecciones);
+  - cada tipo de documento tiene sus campos obligatorios con el tipo correcto (fecha `YYYY-MM-DD`, tipo de ejercicio válido, peso corporal entre 20 y 400 kg, etc.);
+  - hay límites de tamaño: textos cortos, hasta 60 ejercicios por rutina o entrenamiento, 30 semanas por tabla y pocos campos por documento.
+  - **Hay que publicarlas** en Firebase (consola o `npm run deploy:rules`): subir el código no las cambia.
+- **Tests de las reglas** en el emulador de Firestore ([`tests/rules/rules.test.mjs`](tests/rules/rules.test.mjs), `npm run test:rules`), con documentos iguales a los que guarda la app, también los de versiones anteriores.
+- **App Check** listo en el código ([`js/db.js`](js/db.js)): se activa al poner la clave de reCAPTCHA v3 en `appCheckSiteKey` ([`js/firebase-config.js`](js/firebase-config.js)). Mientras esté vacía no cambia nada. Pasos en el README.
+- [`firebase.json`](firebase.json) y [`.firebaserc`](.firebaserc) para el emulador y para publicar las reglas; dependencias de desarrollo (`firebase-tools`, `@firebase/rules-unit-testing`) solo para los tests.
+- [`.gitattributes`](.gitattributes): el hook `pre-push` siempre con fin de línea LF.
+- Caché `gimnasio-v16` en [`sw.js`](sw.js).

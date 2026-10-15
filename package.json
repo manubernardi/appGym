@@ -2,11 +2,18 @@
   "name": "appgym",
   "private": true,
   "type": "module",
-  "description": "App de gimnasio (PWA). No tiene dependencias: package.json solo sirve para correr los tests.",
+  "description": "App de gimnasio (PWA). La app no usa dependencias: package.json es solo para los tests y el emulador de Firebase.",
   "scripts": {
-    "test": "node --test \"tests/*.test.mjs\""
+    "test": "node --test \"tests/*.test.mjs\"",
+    "test:rules": "firebase emulators:exec --only firestore --project demo-appgym \"node --test tests/rules/*.test.mjs\"",
+    "deploy:rules": "firebase deploy --only firestore:rules"
   },
   "engines": {
     "node": ">=22"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^4.0.1",
+    "firebase": "^11.10.0",
+    "firebase-tools": "^13.35.1"
   }
 }

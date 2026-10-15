@@ -3,6 +3,7 @@
 // Firestore las aplica al instante en la caché local y las sube cuando hay conexión.
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js';
+import { initializeAppCheck, ReCaptchaV3Provider } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app-check.js';
 import {
   getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect,
   onAuthStateChanged, signOut,
@@ -12,12 +13,20 @@ import {
   collection, doc, getDoc, getDocs, onSnapshot, setDoc, deleteDoc, writeBatch,
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 
-import { firebaseConfig } from './firebase-config.js';
+import { firebaseConfig, appCheckSiteKey } from './firebase-config.js';
 import { SEED_EXERCISES, SEED_CARDIO_EXERCISES } from './data.js';
 import { state, emit } from './store.js';
 import { toast } from './ui.js';
 
 export const app = initializeApp(firebaseConfig);
+
+// App Check va antes que Firestore y Gemini para que todos sus pedidos lleven el comprobante.
+// En localhost usa un token de depuración: la consola del navegador lo muestra la primera vez
+// y hay que registrarlo en Firebase → App Check → Apps → Administrar tokens de depuración.
+if (appCheckSiteKey && typeof location !== 'undefined') {
+  if (['localhost', '127.0.0.1'].includes(location.hostname)) self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+  initializeAppCheck(app, { provider: new ReCaptchaV3Provider(appCheckSiteKey), isTokenAutoRefreshEnabled: true });
+}
 const auth = getAuth(app);
 const fs = initializeFirestore(app, {
   localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),

@@ -1,0 +1,2 @@
+# El hook es un script de sh: siempre con fin de línea LF, aunque se clone en Windows.
+.githooks/* text eol=lf

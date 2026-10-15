@@ -1,11 +1,95 @@
 rules_version = '2';
+
+// Cada usuario solo puede leer y escribir sus propios datos (users/{uid}/...).
+// Además se valida la forma y el tamaño de lo que se guarda, para que nadie pueda llenar la base
+// con documentos enormes o colecciones inventadas (el espacio y las lecturas los paga el proyecto).
+// Las reglas no pueden recorrer listas: se limita su largo, no el contenido de cada elemento.
+// Los tests están en tests/rules/ (npm run test:rules).
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Cada usuario solo puede leer y escribir sus propios datos.
+
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    function str(v, max) {
+      return v is string && v.size() <= max;
+    }
+
+    function num(v, min, max) {
+      return (v is int || v is float) && v >= min && v <= max;
+    }
+
+    // Fecha YYYY-MM-DD.
+    function isDate(v) {
+      return v is string && v.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+    }
+
+    // Campo opcional: si está, cumple la condición.
+    function opt(d, key, ok) {
+      return !(key in d) || ok;
+    }
+
+    // Pocos campos (no se pueden agregar campos sin límite) y createdAt, si está, es un texto corto.
+    function base(d, maxKeys) {
+      return d.size() <= maxKeys && opt(d, 'createdAt', str(d.get('createdAt', ''), 40));
+    }
+
+    function validUser(d) {
+      return d.keys().hasOnly(['seeded', 'cardioSeeded', 'createdAt'])
+        && opt(d, 'seeded', d.get('seeded', false) is bool)
+        && opt(d, 'cardioSeeded', d.get('cardioSeeded', false) is bool)
+        && opt(d, 'createdAt', str(d.get('createdAt', ''), 40));
+    }
+
+    function validExercise(d) {
+      return base(d, 8)
+        && str(d.name, 100) && d.name.size() > 0
+        && d.type in ['barra', 'mancuerna', 'maquina', 'corporal', 'cardio']
+        && str(d.primary, 30)
+        && opt(d, 'secondary', d.get('secondary', []) is list && d.get('secondary', []).size() <= 12);
+    }
+
+    function validRoutine(d) {
+      return base(d, 8)
+        && str(d.name, 100)
+        && d.items is list && d.items.size() <= 60
+        && opt(d, 'progression', d.get('progression', []) is list && d.get('progression', []).size() <= 30)
+        && opt(d, 'archived', d.get('archived', false) is bool);
+    }
+
+    function validSession(d) {
+      return base(d, 14)
+        && isDate(d.date)
+        && opt(d, 'routineId', d.get('routineId', null) == null || str(d.get('routineId', ''), 40))
+        && opt(d, 'routineName', str(d.get('routineName', ''), 100))
+        && opt(d, 'week', d.get('week', null) == null || d.get('week', 0) is int)
+        && opt(d, 'finished', d.get('finished', false) is bool)
+        && opt(d, 'startedAt', str(d.get('startedAt', ''), 40))
+        && opt(d, 'duration', d.get('duration', null) == null || num(d.get('duration', 0), 0, 86400))
+        && d.entries is list && d.entries.size() <= 60;
+    }
+
+    function validBodyweight(d) {
+      return base(d, 4) && isDate(d.date) && num(d.kg, 20, 400);
+    }
+
+    function valid(col, d) {
+      return (col == 'exercises' && validExercise(d))
+        || (col == 'routines' && validRoutine(d))
+        || (col == 'sessions' && validSession(d))
+        || (col == 'bodyweight' && validBodyweight(d));
+    }
+
     match /users/{uid} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
-      match /{document=**} {
-        allow read, write: if request.auth != null && request.auth.uid == uid;
+      allow read, delete: if isOwner(uid);
+      allow create, update: if isOwner(uid) && validUser(request.resource.data);
+
+      // Solo estas colecciones, con ids razonables. Nada más profundo.
+      match /{col}/{id} {
+        allow read, delete: if isOwner(uid) && col in ['exercises', 'routines', 'sessions', 'bodyweight'];
+        allow create, update: if isOwner(uid) && id.size() <= 40 && valid(col, request.resource.data);
       }
     }
   }
