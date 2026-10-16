@@ -60,7 +60,7 @@ test('Progreso: todas las pestañas', async () => {
   const page = new FakeElement();
   progress.render(page);
   const tabs = page.querySelectorAll('[data-tab]').map((b) => b.dataset.tab);
-  assert.deepEqual(tabs, ['mes', 'semana', 'ejercicio', 'records', 'peso']);
+  assert.deepEqual(tabs, ['mes', 'analisis', 'semana', 'ejercicio', 'records', 'peso']);
   for (const tab of tabs) {
     page.querySelectorAll('[data-tab]').find((b) => b.dataset.tab === tab).onclick();
     assert.match(page.innerHTML, new RegExp(`tab active" data-tab="${tab}"`));

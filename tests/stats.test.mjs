@@ -8,7 +8,7 @@ import { load, routine, session, sets } from './support/fixtures.mjs';
 const { state } = await import('../js/store.js');
 const {
   weekPlan, planWeeks, musclesWorked, monthSummary, records, weekStart,
-  exerciseHistory, trainingDays, weekStreak, weeklyVolume, movingAverage,
+  exerciseHistory, trainingDays, weekStreak, weeklyVolume, movingAverage, compareStrength,
 } = await import('../js/stats.js');
 
 const at = (date) => mock.timers.enable({ apis: ['Date'], now: new Date(`${date}T12:00:00`) });
@@ -122,4 +122,13 @@ test('weeklyVolume: series y kg de fuerza por semana, sin cardio', () => {
 test('movingAverage: media de los últimos 7 días', () => {
   const list = [{ date: '2026-10-01', kg: 80 }, { date: '2026-10-05', kg: 82 }, { date: '2026-10-09', kg: 78 }];
   assert.deepEqual(movingAverage(list), [80, 81, 80]);
+});
+
+test('compareStrength: por 1RM estimado, con margen de ±1,5%', () => {
+  const pb = state.exercises.get('pb');
+  assert.equal(compareStrength(pb, { w: 42.5, r: 7 }, { w: 40, r: 11 }), 1); // menos peso, más fuerza
+  assert.equal(compareStrength(pb, { w: 60, r: 10 }, { w: 62.5, r: 8 }), 0); // progresión normal: igual
+  assert.equal(compareStrength(pb, { w: 60, r: 10 }, { w: 60, r: 11 }), 1); // una rep más
+  assert.equal(compareStrength(pb, { w: 60, r: 10 }, { w: 62.5, r: 7 }), -1);
+  assert.equal(compareStrength(state.exercises.get('fx'), { w: null, r: 12 }, { w: null, r: 13 }), 1);
 });

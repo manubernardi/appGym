@@ -90,6 +90,21 @@ export function beats(ex, a, b) {
   return aw > bw || (aw === bw && a.r > b.r);
 }
 
+// Fuerza de una serie para comparar dos veces: 1RM estimado con peso; reps sin peso.
+export function strengthScore(ex, s) {
+  return WEIGHT_TYPES[ex.type]?.bodyweight && !s.w ? s.r : e1rm(s.w, s.r);
+}
+
+// Cambio de fuerza de la serie a a la b: 1 subió, -1 bajó, 0 igual. Con un margen de ±1,5%, así subir 2,5 kg
+// perdiendo 2 reps (60×10 → 62,5×8) cuenta como igual y una rep más con el mismo peso (+2,5%), como mejora.
+export function compareStrength(ex, a, b) {
+  const x = strengthScore(ex, a);
+  const y = strengthScore(ex, b);
+  if (!x) return Math.sign(y);
+  const d = (y - x) / x;
+  return d > 0.015 ? 1 : d < -0.015 ? -1 : 0;
+}
+
 export function topSet(ex, sets) {
   let top = null;
   for (const s of sets) if (!top || beats(ex, s, top)) top = s;
@@ -148,8 +163,9 @@ export function monthSummary(monthKey) {
     if (list.length < 2) { once.push({ ex }); continue; }
     const first = topSet(ex, list[0].sets);
     const last = topSet(ex, list[list.length - 1].sets);
-    const row = { ex, first, last, firstDate: list[0].date, lastDate: list[list.length - 1].date };
-    (beats(ex, last, first) ? improved : beats(ex, first, last) ? worse : same).push(row);
+    const dir = compareStrength(ex, first, last);
+    const row = { ex, first, last, dir, firstDate: list[0].date, lastDate: list[list.length - 1].date };
+    (dir > 0 ? improved : dir < 0 ? worse : same).push(row);
   }
   const byName = (a, b) => a.ex.name.localeCompare(b.ex.name, 'es');
   [improved, same, worse].forEach((l) => l.sort(byName));

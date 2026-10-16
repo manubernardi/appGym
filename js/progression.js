@@ -30,7 +30,7 @@ export function itemProg(item) {
 
 // Lunes de la Semana 1: la semana del primer entrenamiento terminado con alguna rutina del plan.
 // Sin entrenamientos todavía, null (estás en la Semana 1).
-function planStart(routine) {
+export function planStart(routine) {
   const ids = new Set(state.routines.filter((r) => !r.archived && hasProgression(r)).map((r) => r.id).concat(routine.id));
   const dates = state.sessions.filter((s) => s.finished && ids.has(s.routineId)).map((s) => s.date).sort();
   return dates.length ? weekStart(dates[0]) : null;

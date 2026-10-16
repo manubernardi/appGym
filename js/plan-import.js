@@ -2,18 +2,14 @@
 // Gemini recibe la foto y tu lista de ejercicios: asocia cada renglón a uno existente
 // aunque esté escrito distinto, y si no existe propone crearlo con tipo y grupos.
 
-import { getAI, getGenerativeModel, GoogleAIBackend, Schema } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-ai.js';
+import { Schema } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-ai.js';
 
-import { app } from './db.js';
+import { generate } from './ai.js';
 import { EXERCISE_GROUPS, WEIGHT_TYPES, CARDIO } from './data.js';
 import { state } from './store.js';
 import { FIXED } from './progression.js';
 
-// Si el primero deja de estar disponible, se prueba el siguiente.
-const MODELS = ['gemini-3.8-flash', 'gemini-3.5-flash-lite'];
 const MAX_SIDE = 1600; // px: suficiente para leer la hoja y liviano para subir
-
-const ai = getAI(app, { backend: new GoogleAIBackend() });
 
 const schema = Schema.object({
   properties: {
@@ -108,22 +104,8 @@ ${list}`;
 export async function readPlanPhoto(file) {
   const image = await toJpegBase64(file);
   const parts = [prompt(), { inlineData: { mimeType: 'image/jpeg', data: image } }];
-  let lastErr;
-  for (const name of MODELS) {
-    try {
-      const model = getGenerativeModel(ai, {
-        model: name,
-        generationConfig: { responseMimeType: 'application/json', responseSchema: schema },
-      });
-      const res = await model.generateContent(parts);
-      return clean(JSON.parse(res.response.text()));
-    } catch (err) {
-      lastErr = err;
-      // Modelo retirado o saturado: se prueba el siguiente. Otros errores (sin internet, permisos) cortan acá.
-      if (!/not found|not supported|high demand|overloaded|unavailable|\[(404|429|500|503) /i.test(err.message)) break;
-    }
-  }
-  throw lastErr;
+  const text = await generate(parts, { responseMimeType: 'application/json', responseSchema: schema });
+  return clean(JSON.parse(text));
 }
 
 // Valida lo que devuelve Gemini: ids inexistentes pasan a ejercicio nuevo.

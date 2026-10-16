@@ -24,7 +24,7 @@ El plan gratuito (Spark) no pide tarjeta y sobra para uso personal.
 1. En la consola de Firebase → **AI Logic** (menú *Compilación / Build*) → **Comenzar**.
 2. Elegí **Gemini Developer API** (la gratuita, no pide tarjeta) y confirmá. Esto habilita la API y crea la clave sola: no hay que pegar nada en la app.
 
-Usa el modelo `gemini-3.8-flash` (y `gemini-3.5-flash-lite` si el primero no está). Si Google los retira, cambiá la lista `MODELS` en [`js/plan-import.js`](js/plan-import.js).
+Usa el modelo `gemini-3.8-flash` (y `gemini-3.5-flash-lite` si el primero no está). Si Google los retira, cambiá la lista `MODELS` en [`js/ai.js`](js/ai.js).
 
 ### 1c. App Check (recomendado si la usa más gente)
 Hace que solo tu app pueda usar Firestore y Gemini con la configuración del proyecto (que es pública). Sin App Check,

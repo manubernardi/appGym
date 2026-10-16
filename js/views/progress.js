@@ -1,4 +1,6 @@
-// Pestaña "Progreso": resumen del mes, cumplimiento y músculos de la semana, ejercicios, récords y peso corporal.
+// Pestaña "Progreso": resumen del mes, análisis (reporte del plan, cumplimiento, estancados, balance y fuerza relativa),
+// cumplimiento y músculos de la semana, ejercicios, récords y peso corporal.
+// #progreso/<pestaña> abre directo en esa pestaña (ej. #progreso/analisis).
 
 import { GROUPS, WEIGHT_TYPES } from '../data.js';
 import { state } from '../store.js';
@@ -9,26 +11,38 @@ import {
 import {
   exerciseHistory, loggedExerciseIds, records, fmtSets,
   weekStart, addDays, monthSummary, weekPlan, planWeeks, musclesWorked,
-  trainingDays, weekStreak, weeklyVolume, movingAverage, e1rm,
+  trainingDays, weekStreak, weeklyVolume, movingAverage, e1rm, strengthScore,
 } from '../stats.js';
 import { fmtSet, diffParts, diffBadge, setHtml } from '../set-format.js';
+import {
+  planInfo, strengthChange, recordsBetween, targetCompliance, stalledExercises, muscleBalance, relativeStrength,
+  LEVELS, PUSH, PULL,
+} from '../analysis.js';
 
 // Lo elegido en pantalla se recuerda mientras la app está abierta.
 const ui = {
   tab: 'mes', monthOffset: 0, weekOffset: 0, exerciseId: null, recGroup: null,
-  range: 'todo', volume: 'sets', strAll: false, recAll: false,
+  range: 'todo', volume: 'sets', strAll: false, recAll: false, planAll: false,
+  sex: readSex(), // referencias de fuerza relativa: 'm' (hombres) o 'f' (mujeres)
 };
+let ai = { key: null, text: '', loading: false, error: '' }; // resumen con IA del reporte del plan
+let appliedArg = null; // #progreso/<pestaña>: se aplica una vez al llegar, no en cada actualización de datos
+
+function readSex() {
+  try { return localStorage.getItem('fuerzaRef') === 'f' ? 'f' : 'm'; } catch { return 'm'; }
+}
 let charts = [];
 let shown = null;    // contenedor de la pestaña, para redibujar si cambia el tema
 let lastTab = null;  // los gráficos se animan solo al entrar a una pestaña
 let animate = false;
 
-const TABS = [['mes', 'Mes'], ['semana', 'Semana'], ['ejercicio', 'Ejercicios'], ['records', 'Récords'], ['peso', 'Peso']];
+const TABS = [['mes', 'Mes'], ['analisis', 'Análisis'], ['semana', 'Semana'], ['ejercicio', 'Ejercicios'], ['records', 'Récords'], ['peso', 'Peso']];
 
 export function leave() {
   destroyCharts();
   shown = null;
   lastTab = null;
+  appliedArg = null;
 }
 
 function destroyCharts() {
@@ -41,7 +55,9 @@ window.matchMedia?.('(prefers-color-scheme: dark)')?.addEventListener?.('change'
   if (shown && charts.length) render(shown);
 });
 
-export function render(container) {
+export function render(container, arg) {
+  if (arg && arg !== appliedArg && TABS.some(([k]) => k === arg)) ui.tab = arg;
+  appliedArg = arg ?? appliedArg;
   destroyCharts();
   shown = container;
   animate = ui.tab !== lastTab;
@@ -60,7 +76,7 @@ export function render(container) {
     body.innerHTML = '<div class="card empty"><p>Todavía no hay entrenamientos registrados.</p></div>';
     return;
   }
-  ({ mes: renderMonth, semana: renderWeek, ejercicio: renderExercise, records: renderRecords, peso: renderBodyweight })[ui.tab](body, container);
+  ({ mes: renderMonth, analisis: renderAnalysis, semana: renderWeek, ejercicio: renderExercise, records: renderRecords, peso: renderBodyweight })[ui.tab](body, container);
 }
 
 // --- Colores y gráficos -------------------------------------------------
@@ -318,9 +334,8 @@ function strengthSummary(m) {
 // Cuánto cambió, en proporción: fuerza estimada (1RM) con peso, reps sin peso.
 // Así +20 kg en prensa no le gana a +2,5 kg en press militar solo por ser más kilos.
 function strengthGain(r) {
-  const v = (s) => (WEIGHT_TYPES[r.ex.type]?.bodyweight && !s.w ? s.r : e1rm(s.w, s.r));
-  const a = v(r.first);
-  return a ? (v(r.last) - a) / a : 0;
+  const a = strengthScore(r.ex, r.first);
+  return a ? (strengthScore(r.ex, r.last) - a) / a : 0;
 }
 
 const STR_TOP = 3;
@@ -335,7 +350,8 @@ function foldList(list, flag, noun) {
 }
 
 // Plegado: las mejoras más grandes y lo que bajó. Desplegado: todos (mejoras de mayor a menor, iguales, bajas).
-function strengthList(m) {
+// flag: clave de ui que recuerda si la lista está desplegada (cada tarjeta tiene la suya).
+function strengthList(m, flag = 'strAll') {
   const byGain = (a, b) => strengthGain(b) - strengthGain(a);
   const improved = [...m.improved].sort(byGain);
   const worse = [...m.worse].sort(byGain);
@@ -343,15 +359,18 @@ function strengthList(m) {
   const folded = Math.min(improved.length, STR_TOP) + Math.min(worse.length, STR_TOP);
   // Si plegar esconde 1 o ninguno, no vale la pena el botón.
   if (total - folded <= 1) return strengthRows([...improved, ...m.same, ...worse]);
-  if (ui.strAll) {
+  if (ui[flag]) {
     return `${strengthRows([...improved, ...m.same, ...worse])}
-      <button class="list-item more-btn" data-fold="strAll">Ver menos</button>`;
+      <button class="list-item more-btn" data-fold="${flag}">Ver menos</button>`;
   }
   return `
     ${improved.length ? `<h3 class="sub-title">Lo que más subió</h3>${strengthRows(improved.slice(0, STR_TOP))}` : ''}
     ${worse.length ? `<h3 class="sub-title">Lo que más bajó</h3>${strengthRows(worse.slice(-STR_TOP).reverse())}` : ''}
-    <button class="list-item more-btn" data-fold="strAll">Ver los ${total} ejercicios</button>`;
+    <button class="list-item more-btn" data-fold="${flag}">Ver los ${total} ejercicios</button>`;
 }
+
+// Color según el cambio de fuerza (1RM estimado), no según el peso: 42,5×7 → 40×11 es verde.
+const dirClass = (dir) => (dir > 0 ? 'up' : dir < 0 ? 'down' : '');
 
 function strengthRows(list) {
   return list.map((r) => {
@@ -362,7 +381,7 @@ function strengthRows(list) {
         <span class="str-name">${esc(r.ex.name)}</span>
         <span class="str-sets"><span class="muted">${fmtSet(r.ex, r.first)}</span> → <span class="str-now">${setHtml(r.ex, r.last, r.first)}</span></span>
       </span>
-      <span class="delta-pill ${d.cls}">${d.dir ? d.text : 'igual'}</span>
+      <span class="delta-pill ${dirClass(r.dir)}">${d.dir ? d.text : 'igual'}</span>
     </div>`;
   }).join('');
 }
@@ -480,7 +499,7 @@ function renderMonth(body, container) {
     <section class="card list">
       <h2 class="card-title">💪 Fuerza por ejercicio</h2>
       ${compared.length ? `<div class="str-summary">${strengthSummary(m)}</div>${strengthList(m)}` : '<p class="muted pad">Todavía no repetiste ningún ejercicio este mes.</p>'}
-      <p class="note pad">Compara la serie más pesada de la primera y la última vez que hiciste cada ejercicio en el mes.${m.once.length ? ` ${m.once.length} ejercicio${m.once.length > 1 ? 's' : ''} hecho${m.once.length > 1 ? 's' : ''} una sola vez no se compara${m.once.length > 1 ? 'n' : ''}.` : ''}</p>
+      <p class="note pad">Compara la serie más pesada de la primera y la última vez que hiciste cada ejercicio en el mes, por fuerza estimada (1RM): menos peso con muchas más reps puede ser una mejora.${m.once.length ? ` ${m.once.length} ejercicio${m.once.length > 1 ? 's' : ''} hecho${m.once.length > 1 ? 's' : ''} una sola vez no se compara${m.once.length > 1 ? 'n' : ''}.` : ''}</p>
     </section>`}`;
 
   body.querySelector('[data-prev]').onclick = () => { ui.monthOffset++; render(container); };
@@ -489,6 +508,282 @@ function renderMonth(body, container) {
   body.querySelectorAll('[data-fold]').forEach((b) => {
     b.onclick = () => { ui[b.dataset.fold] = !ui[b.dataset.fold]; render(container); };
   });
+}
+
+// --- Análisis -----------------------------------------------------------
+
+const pctText = (p) => `${Math.round(p * 100)}%`;
+
+function renderAnalysis(body, container) {
+  const plan = planInfo();
+  // El cumplimiento mira el plan actual; sin plan empezado, las últimas 4 semanas.
+  const since = addDays(today(), -27);
+  const scope = plan?.sessions.length
+    ? { sessions: plan.sessions, label: 'en este plan' }
+    : { sessions: state.sessions.filter((s) => s.finished && s.date >= since), label: 'en las últimas 4 semanas' };
+  body.innerHTML = [
+    planCard(plan),
+    complianceCard(targetCompliance(scope.sessions), scope.label),
+    stalledCard(stalledExercises()),
+    balanceCard(muscleBalance()),
+    relativeCard(relativeStrength(ui.sex)),
+  ].join('');
+
+  body.querySelectorAll('[data-fold]').forEach((b) => {
+    b.onclick = () => { ui[b.dataset.fold] = !ui[b.dataset.fold]; render(container); };
+  });
+  body.querySelectorAll('[data-ex]').forEach((b) => {
+    b.onclick = () => { ui.exerciseId = b.dataset.ex; ui.tab = 'ejercicio'; render(container); window.scrollTo(0, 0); };
+  });
+  body.querySelectorAll('[data-sex]').forEach((b) => {
+    b.onclick = () => {
+      ui.sex = b.dataset.sex;
+      try { localStorage.setItem('fuerzaRef', ui.sex); } catch { /* sin almacenamiento: dura mientras la app está abierta */ }
+      render(container);
+    };
+  });
+  body.querySelectorAll('[data-go-tab]').forEach((b) => {
+    b.onclick = () => { ui.tab = b.dataset.goTab; render(container); };
+  });
+  body.querySelector('[data-ai]')?.addEventListener('click', () => askSummary(plan, container));
+}
+
+// --- Reporte del plan ---
+
+function planCard(plan) {
+  if (!plan) {
+    return `
+      <section class="card">
+        <h2 class="card-title">📋 Reporte del plan</h2>
+        <p class="muted">Cuando cargues un plan con progresión semanal, acá vas a ver cómo te fue.</p>
+        <a class="btn btn-small" href="#plan">Ir al plan</a>
+      </section>`;
+  }
+  if (!plan.start) {
+    return `
+      <section class="card">
+        <h2 class="card-title">📋 Reporte del plan</h2>
+        <p class="muted">El plan de ${plan.weeks} semanas empieza con tu primer entrenamiento.</p>
+      </section>`;
+  }
+  const to = plan.finished ? plan.end : today();
+  const change = strengthChange(plan.sessions);
+  const compared = change.improved.length + change.same.length + change.worse.length;
+  const recs = recordsBetween(plan.start, to);
+  const key = aiKey(plan);
+  return `
+    <section class="card list">
+      <h2 class="card-title">📋 Reporte del plan
+        <small class="muted">· ${plan.finished ? 'terminado' : `semana ${plan.week} de ${plan.weeks}`}</small></h2>
+      <p class="muted pad plan-dates">${fmtDate(plan.start)} al ${fmtDate(plan.end)} · ${plan.routines.length} rutina${plan.routines.length === 1 ? '' : 's'}</p>
+      <div class="stat-tiles pad">
+        <div class="tile"><span class="tile-value">${plan.done} <small>de ${plan.planned}</small></span><span class="tile-label">días del plan hechos</span></div>
+        <div class="tile"><span class="tile-value">${recs}</span><span class="tile-label">récord${recs === 1 ? '' : 's'} nuevo${recs === 1 ? '' : 's'}</span></div>
+        <div class="tile"><span class="tile-value">${plan.missed}</span><span class="tile-label">sin entrenar</span></div>
+      </div>
+      ${compared ? `
+        <h3 class="sub-title">Fuerza: primera contra última vez en el plan</h3>
+        <div class="str-summary">${strengthSummary(change)}</div>
+        ${strengthList(change, 'planAll')}` : '<p class="muted pad">Todavía no repetiste ejercicios dentro del plan.</p>'}
+      ${plan.sessions.length >= 2 ? `
+        <div class="ai-box pad">
+          ${ai.key === key && ai.text ? `<div class="ai-text">${aiHtml(ai.text)}</div>` : ''}
+          ${ai.key === key && ai.error ? `<p class="note">${esc(ai.error)}</p>` : ''}
+          ${ai.key === key && ai.text ? '' : `
+            <button class="btn btn-block" data-ai ${ai.loading ? 'disabled' : ''}>${ai.loading ? 'Pensando…' : '✨ Resumen y consejos con IA'}</button>`}
+        </div>` : ''}
+    </section>`;
+}
+
+// El resumen de la IA vale mientras no cambien los entrenamientos del plan.
+function aiKey(plan) {
+  return `${plan.start}:${plan.sessions.length}:${plan.sessions.at(-1)?.id || ''}`;
+}
+
+// Texto simple de Gemini: párrafos y viñetas con "- ".
+function aiHtml(text) {
+  return text.trim().split(/\n+/).map((line) => (/^\s*[-•*]\s+/.test(line)
+    ? `<p class="ai-bullet">${esc(line.replace(/^\s*[-•*]\s+/, ''))}</p>`
+    : `<p>${esc(line)}</p>`)).join('');
+}
+
+async function askSummary(plan, container) {
+  ai = { key: aiKey(plan), text: '', loading: true, error: '' };
+  render(container);
+  try {
+    const { generate } = await import('../ai.js');
+    const text = await generate([reportPrompt(plan)]);
+    ai = { ...ai, text: text.replace(/\*\*/g, ''), loading: false };
+  } catch (err) {
+    ai = { ...ai, loading: false, error: `No se pudo generar el resumen (${err.message}). Probá de nuevo con conexión.` };
+  }
+  if (shown === container && ui.tab === 'analisis') render(container);
+}
+
+// Los datos del reporte en texto, para que Gemini los resuma.
+function reportPrompt(plan) {
+  const change = strengthChange(plan.sessions);
+  // Con el 1RM estimado, para que no lea como baja "42,5×7 → 40×11" (menos peso, pero más fuerza).
+  const rm = (r, s) => (r.ex.type === 'corporal' && !s.w ? '' : ` (1RM est. ${fmtNum(e1rm(s.w, s.r), 0)} kg)`);
+  const line = (r) => `${r.ex.name}: ${fmtSet(r.ex, r.first)}${rm(r, r.first)} → ${fmtSet(r.ex, r.last)}${rm(r, r.last)}`;
+  const comp = targetCompliance(plan.sessions);
+  const stalled = stalledExercises();
+  const bal = muscleBalance(plan.weeks * 7, plan.finished ? plan.end : today());
+  return `Sos un entrenador personal. Escribí en español rioplatense (vos), tono cercano y concreto, sin markdown ni negritas.
+Primero un párrafo corto (2 o 3 oraciones) con cómo le fue en el plan. Después exactamente 3 consejos para el próximo plan,
+cada uno en su línea empezando con "- ". Máximo 120 palabras en total. Basate solo en estos datos:
+
+Plan de ${plan.weeks} semanas (${plan.start} al ${plan.end}), ${plan.finished ? 'terminado' : `va por la semana ${plan.week}`}.
+Días del plan hechos: ${plan.done} de ${plan.planned}. Semanas sin entrenar alguna rutina: ${plan.missed}.
+Récords nuevos: ${recordsBetween(plan.start, plan.finished ? plan.end : today())}.
+Series que llegaron al objetivo de reps: ${comp.pct == null ? 'sin datos' : pctText(comp.pct)}; series que pasaron el tope por 2 o más reps: ${pctText(comp.easyPct)}.
+Mejoraron (serie más pesada, primera → última vez; "bajaron" es por peso, mirá el 1RM estimado): ${change.improved.map(line).join('; ') || 'ninguno'}.
+Igual: ${change.same.map((r) => r.ex.name).join(', ') || 'ninguno'}.
+Bajaron: ${change.worse.map(line).join('; ') || 'ninguno'}.
+Estancados (3+ entrenamientos sin récord): ${stalled.map((s) => `${s.ex.name} (${s.sessions})`).join(', ') || 'ninguno'}.
+Series por semana por músculo (secundarios cuentan media): ${bal.groups.map((g) => `${g.group} ${fmtNum(g.sets, 1)}`).join(', ')}.`;
+}
+
+// --- Cumplimiento del objetivo ---
+
+function complianceCard(c, label) {
+  if (c.pct == null) return '';
+  // Es normal que la última serie quede una rep corta: por eso 80% ya es ir bien.
+  const msg = c.pct >= 0.85 && c.easyPct >= 0.3
+    ? ['up', 'El plan te queda corto: muchas series pasan el tope de reps. Subí el peso.']
+    : c.pct >= 0.8 ? ['up', 'Vas cumpliendo el plan. 👌']
+      : c.pct >= 0.6 ? ['', 'Cumplís la mayoría. Mirá los ejercicios que te cuestan.']
+        : ['down', 'El plan te queda grande: bajá un poco el peso para completar las series.'];
+  const hard = c.byExercise.filter((r) => r.pct < 0.6).sort((a, b) => a.pct - b.pct).slice(0, 3);
+  const easy = c.byExercise.filter((r) => r.easyPct >= 0.5 && r.pct >= 0.8).sort((a, b) => b.easyPct - a.easyPct).slice(0, 3);
+  const row = (r, pill) => `
+    <button class="list-item str-row" data-ex="${r.ex.id}">
+      <span class="str-main">
+        <span class="str-name">${esc(r.ex.name)}</span>
+        <span class="str-sets">${r.hit} de ${r.planned} series al objetivo</span>
+      </span>
+      ${pill}
+    </button>`;
+  return `
+    <section class="card list">
+      <h2 class="card-title">🎯 Cumplimiento del objetivo</h2>
+      <div class="hero pad">
+        <span class="hero-value">${pctText(c.pct)}</span>
+        <span class="hero-label">de las series llegaron a las reps del objetivo ${label} (${c.hit} de ${c.planned})</span>
+        <span class="hero-delta"><span class="pct ${msg[0]}">${msg[1]}</span></span>
+      </div>
+      ${hard.length ? `<h3 class="sub-title">Te cuestan</h3>${hard.map((r) => row(r, `<span class="delta-pill down">${pctText(r.pct)}</span>`)).join('')}` : ''}
+      ${easy.length ? `<h3 class="sub-title">Te quedan fáciles: subí el peso</h3>${easy.map((r) => row(r, '<span class="delta-pill up">fácil</span>')).join('')}` : ''}
+      <p class="note pad">Una serie cumple si llega al mínimo de reps (en "3x8-10", 8). Las series que no hiciste cuentan como no cumplidas. Fácil: la mitad o más de las series pasaron el tope por 2 reps.</p>
+    </section>`;
+}
+
+// --- Estancados ---
+
+function stalledCard(list) {
+  return `
+    <section class="card list">
+      <h2 class="card-title">⏸️ Estancados</h2>
+      ${list.length ? list.map((s) => `
+        <button class="list-item str-row" data-ex="${s.ex.id}">
+          <span class="str-main">
+            <span class="str-name">${esc(s.ex.name)}</span>
+            <span class="str-sets">${s.sessions} entrenamientos sin récord · el último, ${fmtDate(s.since)} (${fmtSet(s.ex, s.best)})</span>
+          </span>
+          <span class="delta-pill ${s.sessions >= 5 ? 'down' : ''}">${s.sessions >= 5 ? 'cambiá algo' : 'descarga'}</span>
+        </button>`).join('')
+        : '<p class="muted pad">Ningún ejercicio trabado. 👌</p>'}
+      <p class="note pad">Cuenta 3 entrenamientos seguidos o más sin superar el récord. Descarga: bajá un 10% el peso una semana y volvé a subir.
+        Si lleva 5 o más, cambiá la variante o el rango de reps.</p>
+    </section>`;
+}
+
+// --- Balance muscular ---
+
+const BAL_MIN = 10;
+const BAL_MAX = 20;
+
+function balanceCard(b) {
+  const scale = Math.max(25, ...b.groups.map((g) => g.sets));
+  const pos = (v) => `${(v / scale) * 100}%`;
+  const ratio = b.pull ? b.push / b.pull : null;
+  const ratioMsg = ratio == null ? (b.push ? 'No hiciste tirón (espalda, bíceps).' : '')
+    : ratio > 1.5 ? 'Mucho más empuje que tirón: sumá espalda o bíceps.'
+      : ratio < 0.67 ? 'Mucho más tirón que empuje: sumá pecho, hombros o tríceps.'
+        : 'Empuje y tirón equilibrados. 👌';
+  const legsMsg = b.upper && b.legs < b.upper * 0.4 ? 'Las piernas reciben bastante menos que el tren superior.' : '';
+  const status = (v) => (v < BAL_MIN ? ['low', 'poco'] : v > BAL_MAX ? ['high', 'mucho'] : ['ok', 'bien']);
+  return `
+    <section class="card">
+      <h2 class="card-title">⚖️ Balance muscular <small class="muted">· series por semana</small></h2>
+      <div class="bal">
+        ${b.groups.map((g) => {
+          const [cls, label] = status(g.sets);
+          return `
+          <div class="bal-row">
+            <span class="bal-name">${esc(g.group)}</span>
+            <span class="bal-track">
+              <span class="bal-band" style="left: ${pos(BAL_MIN)}; width: ${pos(BAL_MAX - BAL_MIN)}"></span>
+              <span class="bal-bar" style="width: ${pos(g.sets)}"></span>
+            </span>
+            <span class="bal-val">${fmtNum(g.sets, 1)} <small class="bal-${cls}">${label}</small></span>
+          </div>`;
+        }).join('')}
+      </div>
+      <div class="bal-ratios">
+        <span>Empuje <strong>${fmtNum(b.push, 1)}</strong> · Tirón <strong>${fmtNum(b.pull, 1)}</strong> · Piernas <strong>${fmtNum(b.legs, 1)}</strong></span>
+        ${ratioMsg ? `<span>${ratioMsg}</span>` : ''}
+        ${legsMsg ? `<span>${legsMsg}</span>` : ''}
+      </div>
+      <p class="note">Promedio de las últimas ${b.weeks >= 4 ? '4 semanas' : 'semanas desde que empezaste'}. El músculo principal de cada ejercicio cuenta la serie entera y los secundarios, media.
+        La franja marca ${BAL_MIN} a ${BAL_MAX} series por semana, la referencia habitual para ganar masa.
+        Empuje: ${PUSH.join(', ').toLowerCase()}. Tirón: ${PULL.join(', ').toLowerCase()}.</p>
+    </section>`;
+}
+
+// --- Fuerza relativa ---
+
+function relativeCard(r) {
+  if (!r.bw) {
+    return `
+      <section class="card">
+        <h2 class="card-title">💪 Fuerza relativa</h2>
+        <p class="muted">Cargá tu peso corporal para ver cuánto levantás en relación a tu peso.</p>
+        <button class="btn btn-small" data-go-tab="peso">Cargar mi peso</button>
+      </section>`;
+  }
+  if (!r.rows.length) return '';
+  const lifts = r.rows.filter((x) => x.lift);
+  const others = r.rows.filter((x) => !x.lift).slice(0, 5);
+  const ratio = (x) => `${fmtNum(x.ratio, 2)}×`;
+  return `
+    <section class="card list">
+      <h2 class="card-title">💪 Fuerza relativa <small class="muted">· 1RM ÷ tu peso</small></h2>
+      ${lifts.length ? `
+        <div class="segmented range pad-x" role="tablist" aria-label="Referencias">
+          <button role="tab" class="${ui.sex === 'm' ? 'active' : ''}" data-sex="m">Referencias hombres</button>
+          <button role="tab" class="${ui.sex === 'f' ? 'active' : ''}" data-sex="f">Referencias mujeres</button>
+        </div>
+        ${lifts.map((x) => `
+          <button class="list-item rel-row" data-ex="${x.ex.id}">
+            <span class="rel-top">
+              <span class="str-name">${esc(x.ex.name)}</span>
+              <strong>${ratio(x)}</strong>
+            </span>
+            <span class="rel-levels" aria-label="Nivel ${LEVELS[x.level]}">
+              ${LEVELS.map((name, i) => `<span class="${!x.below && i <= x.level ? 'on' : ''}"></span>`).join('')}
+            </span>
+            <small class="muted">${x.below ? 'Camino a principiante' : `Nivel <strong>${LEVELS[x.level].toLowerCase()}</strong>`} · 1RM estimado ${fmtNum(x.e1rm, 1)} kg${x.next ? ` · te faltan ${fmtNum(x.next.kg, 1)} kg para ${x.next.name.toLowerCase()}` : ''}</small>
+          </button>`).join('')}` : ''}
+      ${others.length ? `
+        ${lifts.length ? '<h3 class="sub-title">Otros con barra</h3>' : ''}
+        ${others.map((x) => `
+          <button class="list-item week-row" data-ex="${x.ex.id}">
+            <span>${esc(x.ex.name)}</span>
+            <span class="pct">${ratio(x)} <small class="muted">· ${fmtNum(x.e1rm, 1)} kg</small></span>
+          </button>`).join('')}` : ''}
+      <p class="note pad">Con tu mejor serie de los últimos 4 meses y tu último peso (${fmtNum(r.bw, 1)} kg). Los niveles son referencias aproximadas de levantadores; sirven para orientarte, no como meta.</p>
+    </section>`;
 }
 
 // --- Semana -------------------------------------------------------------

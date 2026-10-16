@@ -635,6 +635,44 @@ legend { font-size: .9rem; color: var(--text-secondary); margin-bottom: 6px; }
 /* Fuerza por ejercicio: antes → ahora, con lo que cambió resaltado y el cambio en una etiqueta. */
 .str-summary { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 14px 10px; }
 .more-btn { align-items: center; color: var(--accent); font-weight: 600; font-size: .9rem; }
+
+/* ---------- Análisis ---------- */
+.pad-x { margin-left: 14px; margin-right: 14px; }
+.plan-dates { margin: -4px 0 10px; font-size: .85rem; }
+.tile-value small { font-size: .85rem; font-weight: 600; color: var(--text-secondary); }
+.ai-box { padding-top: 6px; }
+.ai-text { background: var(--surface-2); border-radius: 10px; padding: 12px 14px; font-size: .92rem; }
+.ai-text p { margin: 0 0 8px; }
+.ai-text p:last-child { margin-bottom: 0; }
+.ai-bullet { padding-left: 16px; position: relative; }
+.ai-bullet::before { content: '→'; position: absolute; left: 0; color: var(--accent); }
+
+/* Balance: una barra por grupo sobre la franja de 10 a 20 series. */
+.bal { display: flex; flex-direction: column; gap: 8px; }
+.bal-row { display: grid; grid-template-columns: 96px 1fr 76px; align-items: center; gap: 8px; font-size: .88rem; }
+.bal-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bal-track { position: relative; height: 12px; border-radius: 4px; background: var(--surface-2); overflow: hidden; }
+.bal-band { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--good) 22%, transparent); }
+.bal-bar { position: absolute; left: 0; top: 3px; bottom: 3px; border-radius: 0 3px 3px 0; background: var(--series-1); }
+.bal-val { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+.bal-val small { font-weight: 600; font-size: .72rem; }
+.bal-low { color: var(--warning); }
+.bal-ok { color: var(--good); }
+.bal-high { color: var(--text-muted); }
+.bal-ratios { display: flex; flex-direction: column; gap: 2px; margin-top: 12px; font-size: .88rem; color: var(--text-secondary); }
+
+/* Fuerza relativa: nivel en 5 segmentos. */
+.rel-row { gap: 4px; }
+.rel-top { display: flex; justify-content: space-between; gap: 8px; width: 100%; }
+.rel-top strong { font-variant-numeric: tabular-nums; }
+.rel-levels { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; width: 100%; margin: 2px 0; }
+.rel-levels span { height: 6px; border-radius: 3px; background: var(--surface-2); }
+.rel-levels span.on { background: var(--series-1); }
+
+/* Aviso de plan terminado en Entrenar. */
+.plan-done { display: flex; align-items: center; gap: 12px; text-decoration: none; color: var(--text-primary); border-color: var(--good); }
+.plan-done > span:first-child { font-size: 1.8rem; }
+.plan-done strong { display: block; }
 .str-row { flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; cursor: default; }
 .str-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .str-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

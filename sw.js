@@ -2,7 +2,7 @@
 // Los datos los maneja Firestore con su propia caché offline.
 // Al publicar cambios, subí el número de versión para forzar la actualización.
 
-const CACHE = 'gimnasio-v22';
+const CACHE = 'gimnasio-v24';
 const APP_FILES = [
   './',
   './index.html',
@@ -20,6 +20,8 @@ const APP_FILES = [
   './js/progression.js',
   './js/coach.js',
   './js/set-format.js',
+  './js/ai.js',
+  './js/analysis.js',
   './js/views/train.js',
   './js/views/plan.js',
   './js/views/progress.js',

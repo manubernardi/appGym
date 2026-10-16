@@ -8,8 +8,9 @@ import { WEIGHT_TYPES, CATEGORIES, exerciseCategory } from '../data.js';
 import { state } from '../store.js';
 import { save, remove } from '../db.js';
 import { esc, today, fmtDate, parseDate, parseNum, fmtNum, fmtKg, openModal, confirmDialog, toast, fmtClock, fmtDuration } from '../ui.js';
-import { lastTime, fmtSets, validSets, weekPlan, weekStart } from '../stats.js';
+import { lastTime, fmtSets, validSets, weekPlan, weekStart, addDays } from '../stats.js';
 import { suggestion, recordBefore, isRecord, sessionSummary } from '../coach.js';
+import { planInfo } from '../analysis.js';
 import { fmtSet, diffParts, setHtml } from '../set-format.js';
 import { openExercisePicker } from './exercises.js';
 import { FIXED, hasProgression, itemProg, currentWeek, weekStatus, itemTarget, categoryRuns, itemsLabel } from '../progression.js';
@@ -135,9 +136,17 @@ function renderHome(container) {
   const next = routines.find((r) => !doneOn(r));
   const doneCount = routines.filter(doneOn).length;
   const others = routines.filter((r) => r !== next);
+  // Durante 3 semanas después de terminar el plan, un aviso para ver el reporte.
+  const plan = planInfo();
+  const planDone = plan?.finished && today() <= addDays(plan.end, 21);
 
   container.innerHTML = `
     <h1>¿Qué entrenás hoy?</h1>
+    ${planDone ? `
+      <a class="card plan-done" href="#progreso/analisis">
+        <span aria-hidden="true">🏁</span>
+        <span><strong>Terminaste el plan de ${plan.weeks} semanas</strong><small class="muted">Mirá el reporte: cómo te fue y qué cambiar en el próximo →</small></span>
+      </a>` : ''}
     ${routines.length ? `
       <div class="week-progress">
         <span class="week-dots" aria-hidden="true">${routines.map((r) => `<span class="${doneOn(r) ? 'on' : ''}"></span>`).join('')}</span>
@@ -671,10 +680,10 @@ function renderSummary(container) {
               <span class="str-name">${esc(c.ex.name)}</span>
               <span class="str-sets"><span class="muted">${fmtSet(c.ex, c.from)}</span> → <span class="str-now">${setHtml(c.ex, c.to, c.from)}</span></span>
             </span>
-            <span class="delta-pill ${d.cls}">${d.dir ? d.text : 'igual'}</span>
+            <span class="delta-pill ${c.dir > 0 ? 'up' : c.dir < 0 ? 'down' : ''}">${d.dir ? d.text : 'igual'}</span>
           </div>`;
         }).join('')}
-        <p class="note pad">Compara la serie más pesada de hoy con la de la última vez que hiciste cada ejercicio.</p>
+        <p class="note pad">Compara la serie más pesada de hoy con la de la última vez, por fuerza estimada (1RM).</p>
       </section>` : ''}
     ${routines.length ? `
       <div class="up-next">

@@ -2,7 +2,7 @@
 
 import { WEIGHT_TYPES } from './data.js';
 import { state } from './store.js';
-import { validSets, beats, topSet, lastTime } from './stats.js';
+import { validSets, beats, topSet, lastTime, compareStrength } from './stats.js';
 import { fmtNum } from './ui.js';
 
 // "3x10" -> { sets: 3, low: 10, high: 10 }; "4x8-12" -> { sets: 4, low: 8, high: 12 }. Sin reps legibles, null.
@@ -114,7 +114,7 @@ export function sessionSummary(session) {
     const last = lastTime(ex.id, session.id);
     if (last) {
       const from = topSet(ex, last.sets);
-      const dir = beats(ex, top, from) ? 1 : beats(ex, from, top) ? -1 : 0;
+      const dir = compareStrength(ex, from, top);
       out.compared.push({ ex, from, to: top, dir, fromDate: last.date });
     }
   }
