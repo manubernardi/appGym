@@ -27,6 +27,13 @@ test('suggestion: si hoy el plan pide más series que la última vez, cuenta lo 
   assert.deepEqual([s.w, s.r, s.dir], [62.5, 8, 'up']);
   const fallo = suggestion(ex('pb'), '3x10', last(...sets([60, 10], [60, 10], [55, 10])));
   assert.equal(fallo.dir, 'keep'); // la tercera la bajaste: todavía no
+  assert.match(fallo.why, /2 de 3 series/);
+});
+
+test('suggestion: una serie más liviana al principio es de aproximación', () => {
+  // Caso real: 45×10 · 50×9 · 50×9 con objetivo 3x8 → con 50 pasaste el tope en las que cuentan.
+  const s = suggestion(ex('pb'), '3x8', last(...sets([45, 10], [50, 9], [50, 9])));
+  assert.deepEqual([s.w, s.r, s.dir], [52.5, 8, 'up']);
 });
 
 test('suggestion: mancuernas suben de a 1 kg hasta 10 y de a 2 después', () => {

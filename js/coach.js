@@ -43,9 +43,14 @@ export function suggestion(ex, target, last) {
   if (!t) {
     return { w, r: best + 1, dir: 'keep', why: withW(`La última vez llegaste a ${best} reps`) + ': buscá una más.' };
   }
-  // Todas las series con ese peso llegaron al tope. Si la semana pasada el plan pedía menos series que hoy,
-  // alcanza con haberlas hecho todas con ese peso (las de aproximación más livianas no cuentan).
-  const hit = work.length >= Math.min(t.sets, sets.length) && work.every((s) => s.r >= t.high);
+  // Las series más livianas antes de la primera con el peso más alto son de aproximación y no cuentan.
+  // Las más livianas después sí: bajaste el peso porque no llegabas.
+  // Objetivo cumplido: todas las series que cuentan, con ese peso y llegando al tope de reps.
+  // (Si la semana pasada el plan pedía menos series que hoy, alcanza con las que hiciste.)
+  const warmups = sets.findIndex((s) => (s.w || 0) === w);
+  const need = Math.min(t.sets, sets.length - warmups);
+  const repsOk = work.every((s) => s.r >= t.high);
+  const hit = work.length >= need && repsOk;
   const rirs = work.map((s) => s.rir).filter((n) => n != null);
   const minRir = rirs.length ? Math.min(...rirs) : null;
   const avgRir = rirs.length ? rirs.reduce((a, b) => a + b, 0) / rirs.length : null;
@@ -62,6 +67,9 @@ export function suggestion(ex, target, last) {
   const short = work.filter((s) => s.r <= t.low - 2).length > work.length / 2;
   if (short && w) {
     return { w: Math.max(0, w - weightStep(ex, w)), r: t.low, dir: 'down', why: `Con ${kg(w)} quedaste lejos de ${t.low} reps.` };
+  }
+  if (repsOk) {
+    return { w, r: t.high, dir: 'keep', why: `Con ${kg(w)} hiciste ${work.length} de ${need} series: buscá hacerlas todas con ese peso.` };
   }
   return { w, r: t.high, dir: 'keep', why: withW(`La última vez llegaste a ${best} reps`) + `: mismo peso hasta hacer ${t.sets}×${t.high}.` };
 }
