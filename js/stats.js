@@ -168,7 +168,9 @@ export function monthSummary(monthKey) {
 // --- Por ejercicio ------------------------------------------------------
 
 // Historial de un ejercicio, de más viejo a más nuevo.
+// pr: esa vez superó al récord anterior (la primera vez no cuenta como récord).
 export function exerciseHistory(exerciseId) {
+  const ex = state.exercises.get(exerciseId);
   const out = [];
   for (const session of state.sessions) {
     for (const entry of session.entries || []) {
@@ -178,6 +180,7 @@ export function exerciseHistory(exerciseId) {
       out.push({
         date: session.date,
         sessionId: session.id,
+        createdAt: session.createdAt || '',
         sets,
         maxW: Math.max(...sets.map((s) => s.w || 0)),
         maxReps: Math.max(...sets.map((s) => s.r)),
@@ -185,7 +188,69 @@ export function exerciseHistory(exerciseId) {
       });
     }
   }
-  return out.sort((a, b) => a.date.localeCompare(b.date));
+  out.sort((a, b) => (a.date + a.createdAt).localeCompare(b.date + b.createdAt));
+  let best = null;
+  for (const h of out) {
+    const top = ex ? topSet(ex, h.sets) : null;
+    h.pr = Boolean(best && top && beats(ex, top, best));
+    if (top && (!best || beats(ex, top, best))) best = top;
+  }
+  return out;
+}
+
+// --- Constancia y volumen -----------------------------------------------
+
+// Días entrenados entre from y to: fecha -> { sets, names }. Cuenta las series de todo (cardio incluido).
+export function trainingDays(from, to) {
+  const out = new Map();
+  for (const s of sessionsBetween(from, to)) {
+    const day = out.get(s.date) || { sets: 0, names: [] };
+    day.sets += (s.entries || []).reduce((t, en) => t + validSets(en).length, 0);
+    day.names.push(s.routineName || 'Entrenamiento');
+    out.set(s.date, day);
+  }
+  return out;
+}
+
+// Semanas seguidas con al menos un entrenamiento, hasta la actual. La semana en curso sin entrenar
+// todavía no corta la racha.
+export function weekStreak(ref) {
+  const weeks = new Set(state.sessions.map((s) => weekStart(s.date)));
+  let w = weekStart(ref);
+  if (!weeks.has(w)) w = addDays(w, -7);
+  let n = 0;
+  while (weeks.has(w)) { n++; w = addDays(w, -7); }
+  return n;
+}
+
+// Volumen de `count` semanas que terminan en la del lunes `lastFrom`, de la más vieja a la más nueva.
+// sets: series de fuerza (sin cardio). kg: peso × reps (las mancuernas cuentan las dos).
+export function weeklyVolume(lastFrom, count) {
+  const out = [];
+  for (let i = count - 1; i >= 0; i--) {
+    const from = addDays(lastFrom, -7 * i);
+    let sets = 0;
+    let kg = 0;
+    for (const s of sessionsBetween(from, addDays(from, 6))) {
+      for (const entry of s.entries || []) {
+        const ex = state.exercises.get(entry.exerciseId);
+        if (!ex || isCardio(ex)) continue;
+        const factor = WEIGHT_TYPES[ex.type]?.factor ?? 1;
+        for (const x of validSets(entry)) { sets++; kg += (x.w || 0) * factor * x.r; }
+      }
+    }
+    out.push({ from, sets, kg });
+  }
+  return out;
+}
+
+// Media de los registros de los últimos `days` días (incluido el de cada fecha). list: [{ date, kg }] ascendente.
+export function movingAverage(list, days = 7) {
+  return list.map((b) => {
+    const since = addDays(b.date, -(days - 1));
+    const win = list.filter((x) => x.date >= since && x.date <= b.date);
+    return win.reduce((t, x) => t + x.kg, 0) / win.length;
+  });
 }
 
 // Última vez que hiciste el ejercicio (sin contar la sesión actual).

@@ -475,6 +475,43 @@ legend { font-size: .9rem; color: var(--text-secondary); margin-bottom: 6px; }
 
 .chart-box { position: relative; height: 220px; }
 .chart-box.tall { height: 340px; }
+.chart-box.short { height: 180px; }
+
+/* Número grande arriba de un gráfico, con su cambio en el período. */
+.hero { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; }
+.hero-value { font-size: 2rem; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.hero-value small { font-size: 1rem; font-weight: 600; color: var(--text-secondary); }
+.hero-delta { font-size: .85rem; }
+.hero-label { font-size: .8rem; color: var(--text-muted); }
+.segmented.range { margin-bottom: 12px; }
+.segmented.range button { min-height: 32px; font-size: .85rem; }
+
+/* Mini gráfico de tendencia en las listas. */
+.spark { flex: none; width: 64px; height: 24px; margin-left: auto; }
+.spark polyline { fill: none; stroke: var(--series-1); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.spark circle { fill: var(--series-1); stroke: var(--surface-1); stroke-width: 1.5; }
+
+/* Mapa de constancia: tonos de un solo color, de menos a más series en el día. */
+.heat-stats { display: flex; gap: 20px; margin-bottom: 12px; }
+.heat-stats div { display: flex; flex-direction: column; }
+.heat-stats strong { font-size: 1.5rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.heat-stats small { font-size: .75rem; color: var(--text-muted); }
+.heat { display: grid; grid-template-columns: auto 1fr; gap: 4px 6px; }
+.heat-months { grid-column: 2; display: grid; grid-template-columns: repeat(var(--weeks), 1fr); gap: 3px; font-size: .68rem; color: var(--text-muted); }
+.heat-months span { white-space: nowrap; }
+.heat-days { display: grid; grid-template-rows: repeat(7, 1fr); gap: 3px; font-size: .62rem; color: var(--text-muted); line-height: 1; }
+.heat-days span { display: flex; align-items: center; }
+.heat-grid { display: grid; grid-template-columns: repeat(var(--weeks), 1fr); grid-template-rows: repeat(7, auto); grid-auto-flow: column; gap: 3px; }
+.heat-cell { display: block; aspect-ratio: 1; border-radius: 3px; background: var(--surface-2); cursor: pointer; }
+.heat-cell.l1 { background: color-mix(in srgb, var(--series-1) 40%, var(--surface-2)); }
+.heat-cell.l2 { background: color-mix(in srgb, var(--series-1) 65%, var(--surface-2)); }
+.heat-cell.l3 { background: color-mix(in srgb, var(--series-1) 85%, var(--surface-2)); }
+.heat-cell.l4 { background: var(--series-1); }
+.heat-cell.future { background: none; cursor: default; }
+.heat-cell.sel { outline: 2px solid var(--text-primary); outline-offset: 1px; }
+.heat-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; font-size: .78rem; }
+.heat-legend { display: flex; align-items: center; gap: 3px; color: var(--text-muted); font-size: .7rem; }
+.heat-legend .heat-cell { width: 10px; cursor: default; }
 
 .table-wrap { overflow-x: auto; }
 .table { width: 100%; border-collapse: collapse; font-size: .82rem; font-variant-numeric: tabular-nums; }

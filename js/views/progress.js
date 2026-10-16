@@ -3,20 +3,31 @@
 import { GROUPS, WEIGHT_TYPES } from '../data.js';
 import { state } from '../store.js';
 import { save, remove } from '../db.js';
-import { esc, fmtDate, fmtNum, parseNum, parseDate, today, toast, confirmDialog, monthName, fmtDuration } from '../ui.js';
+import {
+  esc, fmtDate, fmtNum, fmtKg, parseNum, parseDate, toISODate, today, toast, confirmDialog, monthName, fmtDuration,
+} from '../ui.js';
 import {
   exerciseHistory, loggedExerciseIds, records, fmtSets,
   weekStart, addDays, monthSummary, weekPlan, planWeeks, musclesWorked,
+  trainingDays, weekStreak, weeklyVolume, movingAverage,
 } from '../stats.js';
 
 // Lo elegido en pantalla se recuerda mientras la app está abierta.
-const ui = { tab: 'mes', monthOffset: 0, weekOffset: 0, exerciseId: null, recGroup: null };
+const ui = {
+  tab: 'mes', monthOffset: 0, weekOffset: 0, exerciseId: null, recGroup: null,
+  range: 'todo', volume: 'sets',
+};
 let charts = [];
+let shown = null;    // contenedor de la pestaña, para redibujar si cambia el tema
+let lastTab = null;  // los gráficos se animan solo al entrar a una pestaña
+let animate = false;
 
 const TABS = [['mes', 'Mes'], ['semana', 'Semana'], ['ejercicio', 'Ejercicios'], ['records', 'Récords'], ['peso', 'Peso']];
 
 export function leave() {
   destroyCharts();
+  shown = null;
+  lastTab = null;
 }
 
 function destroyCharts() {
@@ -24,8 +35,16 @@ function destroyCharts() {
   charts = [];
 }
 
+// Al pasar de claro a oscuro (o al revés) los colores salen de otras variables: se redibuja.
+window.matchMedia?.('(prefers-color-scheme: dark)')?.addEventListener?.('change', () => {
+  if (shown && charts.length) render(shown);
+});
+
 export function render(container) {
   destroyCharts();
+  shown = container;
+  animate = ui.tab !== lastTab;
+  lastTab = ui.tab;
   container.innerHTML = `
     <h1>Progreso</h1>
     <div class="tabs" role="tablist">
@@ -51,10 +70,31 @@ function css(name) {
 
 function chartTheme() {
   return {
-      p: css('--series-1'), s: css('--series-2'), text: css('--text-secondary'),
-      grid: css('--grid'), surface: css('--surface-1'),
+    p: css('--series-1'), s: css('--series-2'), text: css('--text-secondary'), strong: css('--text-primary'),
+    grid: css('--grid'), surface: css('--surface-1'), border: css('--border'),
   };
 }
+
+// '#2a78d6' -> 'rgba(42,120,214,a)'
+function fade(hex, a) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`;
+}
+
+// Degradé del color de la serie hacia transparente, de arriba hacia abajo del área del gráfico.
+function gradient(color) {
+  return ({ chart }) => {
+    const area = chart.chartArea;
+    if (!area) return 'transparent';
+    const g = chart.ctx.createLinearGradient(0, area.top, 0, area.bottom);
+    g.addColorStop(0, fade(color, 0.22));
+    g.addColorStop(1, fade(color, 0));
+    return g;
+  };
+}
+
+// Los valores por defecto de Chart.js se ponen una vez por tema, no en cada gráfico.
+let themed = null;
 
 function makeChart(canvas, config) {
   const t = chartTheme();
@@ -63,55 +103,170 @@ function makeChart(canvas, config) {
     canvas.replaceWith(Object.assign(document.createElement('p'), { className: 'muted', textContent: 'No se pudo cargar el gráfico (sin conexión).' }));
     return;
   }
-  Chart.defaults.color = t.text;
-  Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
-  Chart.defaults.borderColor = t.grid;
+  if (themed !== t.text + t.grid) {
+    Chart.defaults.color = t.text;
+    Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+    Chart.defaults.borderColor = t.grid;
+    themed = t.text + t.grid;
+  }
   const { plugins = {}, ...options } = config.options || {};
   const chart = new Chart(canvas, {
     ...config,
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      animation: false,
+      animation: animate ? { duration: 300, easing: 'easeOutCubic' } : false,
       interaction: { mode: 'index', intersect: false },
       ...options,
       plugins: {
         legend: {
           display: config.data.datasets.length > 1, position: 'top', align: 'start',
-          labels: { boxWidth: 12, boxHeight: 12, useBorderRadius: true, borderRadius: 3 },
+          labels: { boxWidth: 8, boxHeight: 8, usePointStyle: true, padding: 14 },
         },
         ...plugins,
-        tooltip: { padding: 10, boxPadding: 4, ...plugins.tooltip },
+        tooltip: {
+          backgroundColor: t.surface, borderColor: t.border, borderWidth: 1,
+          titleColor: t.strong, bodyColor: t.text, footerColor: t.strong,
+          padding: 10, boxPadding: 4, cornerRadius: 8, usePointStyle: true,
+          titleFont: { weight: '600' }, footerFont: { weight: '600' },
+          ...plugins.tooltip,
+        },
       },
     },
   });
   charts.push(chart);
 }
 
-function lineChart(canvas, labels, datasets, fmt) {
+const DAY = 86400000;
+const ts = (iso) => parseDate(iso).getTime();
+
+// Marcas del eje de tiempo: unas 4 fechas a días enteros, del primer al último registro.
+function dateTicks(first, last) {
+  const days = Math.round((last - first) / DAY);
+  const step = Math.max(1, Math.ceil(days / 4));
+  const start = toISODate(new Date(first));
+  const out = [];
+  for (let d = 0; d <= days; d += step) out.push({ value: ts(addDays(start, d)) });
+  return out;
+}
+
+// Línea sobre el tiempo real: dos registros separados por 3 semanas quedan más lejos que dos separados por 2 días.
+// datasets: [{ label, color, data: [{ x, y, date, pr? }], fill?, radius?, line? }]
+function timeChart(canvas, datasets, fmt) {
   const t = chartTheme();
-  const colors = [t.p, t.s];
+  const xs = datasets.flatMap((d) => d.data.map((p) => p.x));
+  const first = Math.min(...xs);
+  const last = Math.max(...xs);
+  const pad = Math.max((last - first) * 0.03, DAY);
+  const many = xs.length / datasets.length > 12;
   makeChart(canvas, {
     type: 'line',
     data: {
-      labels,
-      datasets: datasets.map((d, i) => ({
-        ...d,
-        borderColor: colors[i], backgroundColor: colors[i],
-        borderWidth: 2, pointRadius: labels.length > 12 ? 0 : 4, pointHoverRadius: 6, pointHitRadius: 12,
-        pointBorderColor: t.surface, pointBorderWidth: 2, tension: 0.2,
+      datasets: datasets.map((d) => ({
+        label: d.label,
+        data: d.data,
+        showLine: d.line !== false,
+        borderColor: d.color, pointBackgroundColor: d.color,
+        backgroundColor: d.fill ? gradient(d.color) : d.color,
+        fill: d.fill ? 'start' : false,
+        borderWidth: 2, tension: 0.25,
+        pointRadius: (ctx) => (ctx.raw?.pr ? 6 : d.radius ?? (many ? 0 : 3.5)),
+        pointStyle: (ctx) => (ctx.raw?.pr ? 'rectRot' : 'circle'),
+        pointHoverRadius: 6, pointHitRadius: 12,
+        pointBorderColor: t.surface, pointBorderWidth: (ctx) => (ctx.raw?.pr ? 2 : 1.5),
+        order: d.line === false ? 1 : 0,
       })),
     },
     options: {
       scales: {
-        x: { grid: { display: false }, border: { display: false }, ticks: { maxTicksLimit: 6, maxRotation: 0 } },
-        y: { grid: { color: t.grid }, border: { display: false }, ticks: { callback: (v) => fmt(v), maxTicksLimit: 5 } },
+        x: {
+          type: 'linear', min: first - pad, max: last + pad,
+          grid: { display: false }, border: { display: false },
+          afterBuildTicks: (axis) => { axis.ticks = dateTicks(first, last); },
+          ticks: { callback: (v) => fmtDate(toISODate(new Date(v))), maxRotation: 0, autoSkipPadding: 16 },
+        },
+        y: { grace: '8%', grid: { color: t.grid }, border: { display: false }, ticks: { callback: (v) => fmt(v), maxTicksLimit: 5 } },
       },
       plugins: {
-        tooltip: { callbacks: { label: (ctx) => ` ${ctx.dataset.label}: ${fmt(ctx.raw)}` } },
+        tooltip: {
+          callbacks: {
+            title: (items) => fmtDate(items[0].raw.date, true),
+            label: (ctx) => ` ${ctx.dataset.label}: ${fmt(ctx.raw.y)}`,
+            footer: (items) => (items.some((i) => i.raw.pr) ? '🏆 Récord nuevo' : ''),
+          },
+        },
       },
     },
   });
+}
+
+// Rango de tiempo de los gráficos de evolución. Solo se ofrecen los que recortan algo.
+const RANGES = [['1m', '1M', 1], ['3m', '3M', 3], ['6m', '6M', 6], ['1a', '1A', 12], ['todo', 'Todo', 0]];
+
+function rangeFrom(key) {
+  const months = RANGES.find(([k]) => k === key)?.[2];
+  if (!months) return '';
+  const d = parseDate(today());
+  d.setMonth(d.getMonth() - months);
+  return toISODate(d);
+}
+
+// La lista recortada al rango elegido y los botones para cambiarlo ('' si no hay nada que recortar).
+function withRange(list, getDate) {
+  const oldest = list.length ? getDate(list[0]) : today();
+  const options = RANGES.filter(([k]) => k === 'todo' || rangeFrom(k) > oldest);
+  if (!options.some(([k]) => k === ui.range)) ui.range = 'todo';
+  const from = rangeFrom(ui.range);
+  return {
+    list: list.filter((x) => getDate(x) >= from),
+    html: options.length > 1 ? `
+      <div class="segmented range" role="tablist" aria-label="Período">
+        ${options.map(([k, label]) => `<button role="tab" class="${ui.range === k ? 'active' : ''}" data-range="${k}">${label}</button>`).join('')}
+      </div>` : '',
+  };
+}
+
+function bindRange(body, container) {
+  body.querySelectorAll('[data-range]').forEach((b) => {
+    b.onclick = () => { ui.range = b.dataset.range; render(container); };
+  });
+}
+
+// Número grande de una tarjeta y cuánto cambió en el período. good: true si subir es bueno, null si da igual.
+function heroHtml({ value, unit, label, delta, deltaFmt, since, good = true }) {
+  let change = '';
+  if (delta !== undefined) {
+    const dir = Math.abs(delta) < 1e-9 ? 0 : Math.sign(delta);
+    const cls = good === null || !dir ? '' : (dir > 0) === good ? 'up' : 'down';
+    const text = dir ? `${dir > 0 ? '▲ +' : '▼ −'}${deltaFmt(Math.abs(delta))}` : '= igual';
+    change = `<span class="hero-delta"><span class="pct ${cls}">${text}</span> <span class="muted">desde ${fmtDate(since)}</span></span>`;
+  }
+  return `
+    <div class="hero">
+      <span class="hero-value">${value}${unit ? ` <small>${unit}</small>` : ''}</span>
+      ${change}
+      <span class="hero-label">${label}</span>
+    </div>`;
+}
+
+// Mini gráfico de tendencia para las listas (SVG, sin Chart.js).
+function sparkline(values) {
+  if (values.length < 2) return '<span class="spark"></span>';
+  const W = 64;
+  const H = 24;
+  const P = 3;
+  const min = Math.min(...values);
+  const span = Math.max(...values) - min;
+  const pts = values.map((v, i) => [
+    P + (i * (W - 2 * P)) / (values.length - 1),
+    span ? H - P - ((v - min) / span) * (H - 2 * P) : H / 2,
+  ].map((n) => n.toFixed(1)));
+  const [lx, ly] = pts[pts.length - 1];
+  return `
+    <svg class="spark" viewBox="0 0 ${W} ${H}" aria-hidden="true">
+      <polyline points="${pts.map((p) => p.join(',')).join(' ')}" />
+      <circle cx="${lx}" cy="${ly}" r="2.5" />
+    </svg>`;
 }
 
 // --- Cumplimiento y músculos (compartido por Mes y Semana) ---------------
@@ -180,6 +335,73 @@ function strengthRows(list) {
     </div>`).join('');
 }
 
+// Mapa de constancia: una columna por semana (lunes arriba), un cuadrito por día con el tono según las series.
+const HEAT_LEVELS = [1, 10, 18, 25]; // series desde las que se pasa a cada tono
+const HEAT_DAYS = ['lun', '', 'mié', '', 'vie', '', 'dom'];
+
+function heatLevel(sets) {
+  return Math.max(1, HEAT_LEVELS.filter((n) => sets >= n).length);
+}
+
+// Las semanas que terminan en la de `end`.
+function heatmap(end) {
+  const weeks = window.innerWidth >= 480 ? 26 : 17;
+  const start = addDays(weekStart(end), -7 * (weeks - 1));
+  const days = trainingDays(start, addDays(weekStart(end), 6));
+  const now = today();
+  const cells = [];
+  const months = [];
+  for (let w = 0; w < weeks; w++) {
+    const from = addDays(start, 7 * w);
+    for (let i = 0; i < 7; i++) {
+      const date = addDays(from, i);
+      if (date.endsWith('-01')) months.push({ col: w, label: monthName(parseDate(date).getMonth()) });
+      if (date > now) { cells.push('<span class="heat-cell future"></span>'); continue; }
+      const day = days.get(date);
+      const tip = `${fmtDate(date, true)}: ${day ? `${day.sets} series` : 'sin entrenar'}`;
+      cells.push(`<span class="heat-cell${day ? ` l${heatLevel(day.sets)}` : ''}" data-day="${date}" title="${tip}"></span>`);
+    }
+  }
+  // El primer mes se nombra en la primera columna si el siguiente nombre no queda pegado.
+  if (!months.length || months[0].col >= 3) months.unshift({ col: 0, label: monthName(parseDate(start).getMonth()) });
+  const trained = [...days.keys()].filter((d) => d <= now).length;
+  return {
+    days,
+    html: `
+    <section class="card">
+      <h2 class="card-title">🔥 Constancia</h2>
+      <div class="heat-stats">
+        <div><strong>${trained}</strong><small>días entrenados en ${weeks} semanas</small></div>
+        <div><strong>${weekStreak(now)}</strong><small>semanas seguidas entrenando</small></div>
+      </div>
+      <div class="heat" style="--weeks: ${weeks}">
+        <div class="heat-months">${months.map((m) => `<span style="grid-column: ${m.col + 1} / span 3">${m.label}</span>`).join('')}</div>
+        <div class="heat-days">${HEAT_DAYS.map((d) => `<span>${d}</span>`).join('')}</div>
+        <div class="heat-grid">${cells.join('')}</div>
+      </div>
+      <div class="heat-foot">
+        <span class="heat-info muted">Tocá un día para ver el detalle.</span>
+        <span class="heat-legend">Menos <span class="heat-cell"></span>${HEAT_LEVELS.map((_, i) => `<span class="heat-cell l${i + 1}"></span>`).join('')} Más</span>
+      </div>
+    </section>`,
+  };
+}
+
+function bindHeatmap(body, days) {
+  const info = body.querySelector('.heat-info');
+  body.querySelector('.heat-grid').onclick = (e) => {
+    const cell = e.target.closest?.('[data-day]');
+    if (!cell) return;
+    body.querySelectorAll('.heat-cell.sel').forEach((c) => c.classList.remove('sel'));
+    cell.classList.add('sel');
+    const date = cell.dataset.day;
+    const day = days.get(date);
+    info.textContent = day
+      ? `${fmtDate(date, true)} · ${day.names.join(' + ')} · ${day.sets} series`
+      : `${fmtDate(date, true)} · sin entrenar`;
+  };
+}
+
 function renderMonth(body, container) {
   const now = new Date();
   const d = new Date(now.getFullYear(), now.getMonth() - ui.monthOffset, 1);
@@ -188,6 +410,7 @@ function renderMonth(body, container) {
   const m = monthSummary(key);
   const weeks = planWeeks(m.from, m.to);
   const compared = [...m.improved, ...m.same, ...m.worse];
+  const heat = heatmap(m.to);
 
   body.innerHTML = `
     <div class="period-nav">
@@ -195,6 +418,7 @@ function renderMonth(body, container) {
       <strong>${MONTHS_LONG[d.getMonth()]} ${d.getFullYear()}${m.inProgress ? ' <small class="muted">(en curso)</small>' : ''}</strong>
       <button class="icon-btn" data-next ${ui.monthOffset === 0 ? 'disabled' : ''} aria-label="Mes siguiente">›</button>
     </div>
+    ${heat.html}
     ${!m.sessionCount ? '<div class="card empty"><p>No hay entrenamientos este mes.</p></div>' : `
     <div class="stat-tiles">
       <div class="tile"><span class="tile-value">${m.sessionCount}</span><span class="tile-label">entrenamientos</span></div>
@@ -229,9 +453,86 @@ function renderMonth(body, container) {
 
   body.querySelector('[data-prev]').onclick = () => { ui.monthOffset++; render(container); };
   body.querySelector('[data-next]').onclick = () => { ui.monthOffset--; render(container); };
+  bindHeatmap(body, heat.days);
 }
 
 // --- Semana -------------------------------------------------------------
+
+// Volumen de las últimas 12 semanas hasta la elegida (o hasta la actual si la elegida entra).
+const VOL_WEEKS = 12;
+const VOLUME = [['sets', 'Series'], ['kg', 'Kg levantados']];
+
+function volumeCard() {
+  return `
+    <section class="card">
+      <h2 class="card-title">📊 Volumen por semana</h2>
+      <div class="segmented range" role="tablist" aria-label="Medida">
+        ${VOLUME.map(([k, label]) => `<button role="tab" class="${ui.volume === k ? 'active' : ''}" data-vol="${k}">${label}</button>`).join('')}
+      </div>
+      <div class="chart-box short"><canvas></canvas></div>
+      <p class="note">${ui.volume === 'kg' ? 'Peso × reps de cada serie (las mancuernas cuentan las dos). ' : ''}Solo fuerza, sin cardio. Tocá una barra para ver esa semana.</p>
+    </section>`;
+}
+
+function volumeChart(body, container, from) {
+  body.querySelectorAll('[data-vol]').forEach((b) => {
+    b.onclick = () => { ui.volume = b.dataset.vol; render(container); };
+  });
+  const canvas = body.querySelector('canvas');
+  if (!canvas) return;
+  const lastOffset = ui.weekOffset < VOL_WEEKS ? 0 : ui.weekOffset;
+  const vol = weeklyVolume(addDays(weekStart(today()), -7 * lastOffset), VOL_WEEKS);
+  // Sin las semanas vacías de antes de empezar, pero con al menos 4 barras.
+  const firstWeek = weekStart(oldestDate());
+  while (vol.length > 4 && vol[0].from < firstWeek) vol.shift();
+  const sel = vol.findIndex((w) => w.from === from);
+  const kg = ui.volume === 'kg';
+  const fmt = (v) => (kg ? fmtKg(v) : `${v} ${v === 1 ? 'serie' : 'series'}`);
+  // El eje en toneladas o en kg, todo igual (no "10 t" y "5.000 kg" juntos).
+  const tons = kg && Math.max(...vol.map((w) => w.kg)) >= 10000;
+  const tick = (v) => (!kg ? v : tons ? `${fmtNum(v / 1000, 1)} t` : `${fmtNum(v, 0)} kg`);
+  const t = chartTheme();
+  const go = (i) => {
+    if (i === undefined || i === sel) return;
+    ui.weekOffset = lastOffset + (vol.length - 1 - i);
+    render(container);
+  };
+  makeChart(canvas, {
+    type: 'bar',
+    data: {
+      labels: vol.map((w) => w.from),
+      datasets: [{
+        label: kg ? 'Kg levantados' : 'Series',
+        data: vol.map((w) => (kg ? Math.round(w.kg) : w.sets)),
+        backgroundColor: vol.map((_, i) => (i === sel ? t.p : fade(t.p, 0.35))),
+        hoverBackgroundColor: t.p,
+        borderRadius: 4, borderSkipped: 'start', maxBarThickness: 28,
+      }],
+    },
+    options: {
+      scales: {
+        x: {
+          grid: { display: false }, border: { display: false },
+          ticks: { callback: (v, i) => fmtDate(vol[i].from), maxRotation: 0, autoSkipPadding: 12 },
+        },
+        y: {
+          beginAtZero: true, grid: { color: t.grid }, border: { display: false },
+          ticks: { maxTicksLimit: 4, precision: 0, callback: tick },
+        },
+      },
+      onClick: (e, els) => go(els[0]?.index),
+      onHover: (e, els) => { e.native.target.style.cursor = els.length ? 'pointer' : ''; },
+      plugins: {
+        tooltip: {
+          callbacks: {
+            title: (items) => `Semana del ${weekRange(vol[items[0].dataIndex].from, addDays(vol[items[0].dataIndex].from, 6))}`,
+            label: (ctx) => ` ${fmt(ctx.raw)}`,
+          },
+        },
+      },
+    },
+  });
+}
 
 function renderWeek(body, container) {
   const from = addDays(weekStart(today()), -7 * ui.weekOffset);
@@ -251,6 +552,7 @@ function renderWeek(body, container) {
       <strong>${weekRange(from, to)}${live ? ' <small class="muted">(en curso)</small>' : ''}</strong>
       <button class="icon-btn" data-next ${live ? 'disabled' : ''} aria-label="Semana siguiente">›</button>
     </div>
+    ${volumeCard()}
     <section class="card list">
       <h2 class="card-title">📅 Días del plan <small class="muted">· ${plan.done} de ${plan.days.length}</small></h2>
       ${plan.days.map(({ routine, dates }) => `
@@ -284,6 +586,7 @@ function renderWeek(body, container) {
 
   body.querySelector('[data-prev]').onclick = () => { ui.weekOffset++; render(container); };
   body.querySelector('[data-next]').onclick = () => { ui.weekOffset--; render(container); };
+  volumeChart(body, container, from);
 }
 
 // --- Ejercicio ----------------------------------------------------------
@@ -304,6 +607,14 @@ function renderExercise(body, container) {
   const bw = WEIGHT_TYPES[ex.type]?.bodyweight;
   const hist = exerciseHistory(ex.id);
   const unit = WEIGHT_TYPES[ex.type]?.short || 'kg';
+  const range = withRange(hist, (h) => h.date);
+  const shownHist = range.list;
+  const first = shownHist[0];
+  const last = shownHist[shownHist.length - 1];
+  const prs = shownHist.filter((h) => h.pr).length;
+  // Lo que se sigue: reps sin peso, o la fuerza estimada (1RM) con peso.
+  const metric = bw ? (h) => h.maxReps : (h) => Math.round(h.bestE1rm * 10) / 10;
+  const kg = (v) => `${fmtNum(v, 1)} kg`;
 
   body.innerHTML = `
     <select class="input" data-ex aria-label="Ejercicio">
@@ -314,29 +625,44 @@ function renderExercise(body, container) {
       }).join('')}
     </select>
     <section class="card">
-      <h2 class="card-title">${bw ? 'Máximo de repeticiones' : `Peso máximo y fuerza estimada (${esc(unit)})`}</h2>
-      <div class="chart-box"><canvas></canvas></div>
-      ${bw ? '' : '<p class="note">Fuerza estimada (1RM): cuánto podrías levantar a 1 repetición según tus series (fórmula de Epley).</p>'}
+      ${last ? heroHtml({
+        value: bw ? last.maxReps : fmtNum(metric(last), 1),
+        unit: bw ? 'reps' : 'kg',
+        label: `${bw ? 'Máximo de repeticiones' : 'Fuerza estimada (1RM)'} · última vez, ${fmtDate(last.date)}`,
+        ...(shownHist.length > 1 ? {
+          delta: metric(last) - metric(first), since: first.date,
+          deltaFmt: bw ? (v) => `${fmtNum(v, 0)} ${v === 1 ? 'rep' : 'reps'}` : kg,
+        } : {}),
+      }) : ''}
+      ${range.html}
+      ${shownHist.length ? '<div class="chart-box"><canvas></canvas></div>' : '<p class="muted center">No lo hiciste en este período.</p>'}
+      <p class="note">${prs ? `◆ Récord nuevo (${prs} en el período). ` : ''}${bw ? '' : `Peso en ${esc(unit)}. Fuerza estimada (1RM): cuánto podrías levantar a 1 repetición según tus series (fórmula de Epley).`}</p>
     </section>
     <section class="card list">
       <h2 class="card-title">Historial</h2>
       ${[...hist].reverse().map((h) => `
         <a class="list-item" href="#entrenar/${h.sessionId}">
-          <span>${fmtDate(h.date, true)}</span>
+          <span>${fmtDate(h.date, true)}${h.pr ? ' <span class="pct up">🏆 récord</span>' : ''}</span>
           <small>${esc(fmtSets(h.sets, ex))}</small>
         </a>`).join('')}
     </section>`;
   body.querySelector('[data-ex]').onchange = (e) => { ui.exerciseId = e.target.value; render(container); };
+  bindRange(body, container);
 
-  const labels = hist.map((h) => fmtDate(h.date));
   const canvas = body.querySelector('canvas');
+  if (!canvas || !shownHist.length) return;
+  const t = chartTheme();
+  const point = (h, y, pr) => ({ x: ts(h.date), y, date: h.date, pr });
   if (bw) {
-    lineChart(canvas, labels, [{ label: 'Máx. reps', data: hist.map((h) => h.maxReps) }], (v) => `${fmtNum(v, 0)}`);
+    timeChart(canvas, [
+      { label: 'Máx. reps', color: t.p, fill: true, data: shownHist.map((h) => point(h, h.maxReps, h.pr)) },
+    ], (v) => fmtNum(v, 0));
   } else {
-    lineChart(canvas, labels, [
-      { label: 'Peso máximo', data: hist.map((h) => h.maxW) },
-      { label: 'Fuerza estimada (1RM)', data: hist.map((h) => Math.round(h.bestE1rm * 10) / 10) },
-    ], (v) => `${fmtNum(v, 1)} kg`);
+    // El récord se marca sobre el peso máximo, que es lo que define un récord.
+    timeChart(canvas, [
+      { label: 'Peso máximo', color: t.p, data: shownHist.map((h) => point(h, h.maxW, h.pr)) },
+      { label: 'Fuerza estimada (1RM)', color: t.s, data: shownHist.map((h) => point(h, metric(h), false)) },
+    ], kg);
   }
 }
 
@@ -348,6 +674,12 @@ function recordValue(ex, set) {
   return `<strong>${fmtNum(set.w || 0, 2)}</strong> <small>${ex.type === 'mancuerna' ? 'kg c/u' : 'kg'} × ${set.r}</small>`;
 }
 
+// Tendencia de las últimas 12 veces: fuerza estimada (1RM), o reps si es sin peso.
+function trend(ex) {
+  const bw = WEIGHT_TYPES[ex.type]?.bodyweight;
+  return sparkline(exerciseHistory(ex.id).slice(-12).map((h) => (bw ? h.maxReps : h.bestE1rm)));
+}
+
 function recordRow(r) {
   return `
     <button class="list-item rec-row" data-ex="${r.ex.id}">
@@ -355,6 +687,7 @@ function recordRow(r) {
         <span class="rec-name">${esc(r.ex.name)}</span>
         <small class="muted">${agoLabel(r.date, today())}${r.prev ? ` · antes ${fmtSet(r.ex, r.prev)}` : ''}</small>
       </span>
+      ${trend(r.ex)}
       <span class="rec-val">${recordValue(r.ex, r.best)}</span>
     </button>`;
 }
@@ -386,13 +719,14 @@ function renderRecords(body, container) {
             <span class="rec-name">${esc(r.ex.name)}</span>
             <small class="muted">${fmtDate(r.date, true)} · ${diffBadge(r.ex, r.prev, r.best)}</small>
           </span>
+          ${trend(r.ex)}
           <span class="rec-val">${recordValue(r.ex, r.best)}</span>
         </button>`).join('')}
     </section>` : ''}
     ${shown.map((g) => `
       <h2 class="section-title">${esc(g)}</h2>
       <div class="card list">${recs.filter((r) => r.ex.primary === g).map(recordRow).join('')}</div>`).join('')}
-    <p class="note">Récord: la serie con más peso (a igual peso, más reps; sin peso, más reps). Tocá un ejercicio para ver su evolución.</p>`;
+    <p class="note">Récord: la serie con más peso (a igual peso, más reps; sin peso, más reps). La línea muestra la tendencia de las últimas 12 veces. Tocá un ejercicio para ver su evolución.</p>`;
 
   body.querySelectorAll('[data-group]').forEach((b) => {
     b.onclick = () => { ui.recGroup = b.dataset.group || null; render(container); };
@@ -404,10 +738,18 @@ function renderRecords(body, container) {
 
 // --- Peso corporal ------------------------------------------------------
 
-function renderBodyweight(body) {
+function renderBodyweight(body, container) {
   const list = state.bodyweight;
   const last = list[list.length - 1];
-  const first = list[0];
+  // La media de 7 días saca el ruido del día a día (agua, comida, sal): es la que conviene mirar.
+  const avg = movingAverage(list);
+  const points = list.map((b, i) => ({ ...b, avg: avg[i] }));
+  const range = withRange(points, (b) => b.date);
+  const shownList = range.list;
+  const first = shownList[0];
+  const end = shownList[shownList.length - 1];
+  const kg = (v) => `${fmtNum(v, 1)} kg`;
+
   body.innerHTML = `
     <form class="card form inline-form">
       <label>Fecha <input class="input" type="date" name="date" value="${today()}" required></label>
@@ -415,14 +757,16 @@ function renderBodyweight(body) {
       <button class="btn btn-primary">Guardar</button>
     </form>
     ${list.length ? `
-      <div class="stat-tiles">
-        <div class="tile"><span class="tile-value">${fmtNum(last.kg)} kg</span><span class="tile-label">actual (${fmtDate(last.date)})</span></div>
-        <div class="tile"><span class="tile-value">${diff(last.kg - first.kg)}</span><span class="tile-label">desde ${fmtDate(first.date)}</span></div>
-      </div>
-      ${list.length > 1 ? `<section class="card">
-        <h2 class="card-title">Peso corporal (kg)</h2>
-        <div class="chart-box"><canvas></canvas></div>
-      </section>` : ''}
+      <section class="card">
+        ${end ? heroHtml({
+          value: fmtNum(end.avg, 1), unit: 'kg',
+          label: `Media de 7 días · último registro ${fmtNum(end.kg)} kg, ${fmtDate(end.date)}`,
+          ...(shownList.length > 1 ? { delta: end.avg - first.avg, since: first.date, deltaFmt: kg, good: null } : {}),
+        }) : ''}
+        ${range.html}
+        ${shownList.length > 1 ? '<div class="chart-box"><canvas></canvas></div>' : ''}
+        ${!shownList.length ? '<p class="muted center">No hay registros en este período.</p>' : ''}
+      </section>
       <section class="card list">
         ${[...list].reverse().map((b) => `
           <div class="list-item row">
@@ -435,24 +779,25 @@ function renderBodyweight(body) {
   body.querySelector('form').onsubmit = (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
-    const kg = parseNum(fd.get('kg'));
-    if (!kg || kg <= 0) { toast('Peso inválido.'); return; }
+    const kgVal = parseNum(fd.get('kg'));
+    if (!kgVal || kgVal <= 0) { toast('Peso inválido.'); return; }
     const date = fd.get('date');
     const existing = list.find((b) => b.date === date);
-    save('bodyweight', { ...(existing ? { id: existing.id, createdAt: existing.createdAt } : {}), date, kg });
+    save('bodyweight', { ...(existing ? { id: existing.id, createdAt: existing.createdAt } : {}), date, kg: kgVal });
   };
   body.querySelectorAll('[data-del]').forEach((b) => {
     b.onclick = async () => {
       if (await confirmDialog('¿Borrar este registro de peso?', 'Borrar', true)) remove('bodyweight', b.dataset.del);
     };
   });
+  bindRange(body, container);
+
   const canvas = body.querySelector('canvas');
   if (canvas) {
-    lineChart(canvas, list.map((b) => fmtDate(b.date)), [{ label: 'Peso', data: list.map((b) => b.kg) }], (v) => `${fmtNum(v, 1)} kg`);
+    const t = chartTheme();
+    timeChart(canvas, [
+      { label: 'Media 7 días', color: t.p, fill: true, radius: 0, data: shownList.map((b) => ({ x: ts(b.date), y: b.avg, date: b.date })) },
+      { label: 'Registro', color: fade(t.p, 0.45), line: false, radius: 3, data: shownList.map((b) => ({ x: ts(b.date), y: b.kg, date: b.date })) },
+    ], kg);
   }
-}
-
-function diff(d) {
-  const s = fmtNum(Math.abs(d)) + ' kg';
-  return d > 0 ? '+' + s : d < 0 ? '−' + s : s;
 }

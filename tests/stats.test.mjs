@@ -6,7 +6,10 @@ import './support/env.mjs';
 import { load, routine, session, sets } from './support/fixtures.mjs';
 
 const { state } = await import('../js/store.js');
-const { weekPlan, planWeeks, musclesWorked, monthSummary, records, weekStart } = await import('../js/stats.js');
+const {
+  weekPlan, planWeeks, musclesWorked, monthSummary, records, weekStart,
+  exerciseHistory, trainingDays, weekStreak, weeklyVolume, movingAverage,
+} = await import('../js/stats.js');
 
 const at = (date) => mock.timers.enable({ apis: ['Date'], now: new Date(`${date}T12:00:00`) });
 afterEach(() => mock.timers.reset());
@@ -87,4 +90,36 @@ test('records: a igual peso gana la de más reps', () => {
   const pb = records().find((r) => r.ex.id === 'pb');
   assert.deepEqual(pb.best, { w: 47.5, r: 9 });
   assert.deepEqual(pb.prev, { w: 47.5, r: 8 });
+});
+
+test('exerciseHistory: marca los récords sin contar la primera vez', () => {
+  state.sessions.unshift(session('d1', '2026-10-15', [{ exerciseId: 'pb', sets: sets([45, 10]) }]));
+  assert.deepEqual(exerciseHistory('pb').map((h) => [h.date, h.pr]), [
+    ['2026-10-06', false], ['2026-10-13', true], ['2026-10-15', false],
+  ]);
+  assert.deepEqual(exerciseHistory('fx').map((h) => h.pr), [false, true]); // sin peso: por reps
+});
+
+test('trainingDays: series y nombres por día', () => {
+  const days = trainingDays('2026-10-01', '2026-10-31');
+  assert.deepEqual([...days.keys()].sort(), ['2026-10-06', '2026-10-08', '2026-10-13', '2026-10-14']);
+  assert.deepEqual(days.get('2026-10-06'), { sets: 3, names: ['d1'] });
+});
+
+test('weekStreak: la semana en curso sin entrenar no corta la racha', () => {
+  assert.equal(weekStreak('2026-10-14'), 2);
+  assert.equal(weekStreak('2026-10-20'), 2);
+  assert.equal(weekStreak('2026-10-27'), 0);
+});
+
+test('weeklyVolume: series y kg de fuerza por semana, sin cardio', () => {
+  const v = weeklyVolume('2026-10-12', 3);
+  assert.deepEqual(v.map((w) => w.from), ['2026-09-28', '2026-10-05', '2026-10-12']);
+  assert.deepEqual(v.map((w) => w.sets), [0, 4, 3]);
+  assert.equal(v[1].kg, 40 * 10 + 42.5 * 6 + 60 * 8);
+});
+
+test('movingAverage: media de los últimos 7 días', () => {
+  const list = [{ date: '2026-10-01', kg: 80 }, { date: '2026-10-05', kg: 82 }, { date: '2026-10-09', kg: 78 }];
+  assert.deepEqual(movingAverage(list), [80, 81, 80]);
 });
