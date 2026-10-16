@@ -7,8 +7,8 @@
 import { WEIGHT_TYPES, CATEGORIES, exerciseCategory } from '../data.js';
 import { state } from '../store.js';
 import { save, remove } from '../db.js';
-import { esc, today, fmtDate, parseNum, openModal, confirmDialog, toast, fmtClock, fmtDuration } from '../ui.js';
-import { lastTime, fmtSets, validSets } from '../stats.js';
+import { esc, today, fmtDate, parseDate, parseNum, openModal, confirmDialog, toast, fmtClock, fmtDuration } from '../ui.js';
+import { lastTime, fmtSets, validSets, weekPlan, weekStart } from '../stats.js';
 import { openExercisePicker } from './exercises.js';
 import { FIXED, hasProgression, itemProg, currentWeek, weekStatus, itemTarget, categoryRuns, itemsLabel } from '../progression.js';
 
@@ -120,24 +120,47 @@ function stopClock() {
 function renderHome(container) {
   const routines = state.routines.filter((r) => !r.archived);
   const recent = state.sessions.slice(0, 5);
+  // Lo hecho esta semana (lunes a domingo) por rutina. Te toca la primera del plan que falta.
+  const week = weekPlan(weekStart(today()));
+  const doneOn = (r) => week.days.find((d) => d.routine.id === r.id)?.dates.slice(-1)[0];
+  const next = routines.find((r) => !doneOn(r));
+  const doneCount = routines.filter(doneOn).length;
+  const others = routines.filter((r) => r !== next);
+
   container.innerHTML = `
     <h1>¿Qué entrenás hoy?</h1>
-    ${routines.length ? '' : `
+    ${routines.length ? `
+      <div class="week-progress">
+        <span class="week-dots" aria-hidden="true">${routines.map((r) => `<span class="${doneOn(r) ? 'on' : ''}"></span>`).join('')}</span>
+        <span>Esta semana: <strong>${doneCount} de ${routines.length}</strong>${doneCount === routines.length ? ' · ¡completa! 💪' : ''}</span>
+      </div>
+      ${next ? `
+        <section class="next-card">
+          <span class="next-eyebrow">Te toca</span>
+          <strong class="next-name">${esc(next.name)}</strong>
+          <span class="next-meta">${weekLabel(next)}${itemsLabel(next)}</span>
+          ${lastDoneText(next.id) ? `<span class="next-meta">Última vez: ${lastDoneText(next.id)}</span>` : ''}
+          <button class="btn btn-primary next-start" data-routine="${next.id}">Empezar ▶</button>
+        </section>` : ''}
+      ${others.length ? `
+        <h2 class="section-title">${next ? 'Otras rutinas' : 'Rutinas'}</h2>
+        <div class="card list">
+          ${others.map((r) => `
+            <button class="list-item week-row" data-routine="${r.id}">
+              <span class="routine-row-info">
+                <span>${esc(r.name)}</span>
+                <small class="muted">${weekLabel(r)}${itemsLabel(r)}</small>
+              </span>
+              ${doneOn(r)
+                ? `<span class="pct up">✓ ${fmtDate(doneOn(r), true)}</span>`
+                : '<span class="pct">pendiente</span>'}
+            </button>`).join('')}
+        </div>` : ''}` : `
       <div class="card empty">
         <p>Todavía no cargaste tu plan.</p>
         <a class="btn btn-primary" href="#plan">Cargar plan del mes</a>
       </div>`}
-    <div class="routine-buttons">
-      ${routines.map((r) => `
-        <button class="routine-btn" data-routine="${r.id}">
-          <strong>${esc(r.name)}</strong>
-          <small>${weekLabel(r)}${itemsLabel(r)}${lastDoneLabel(r.id)}</small>
-        </button>`).join('')}
-      <button class="routine-btn routine-free" data-free>
-        <strong>Entrenamiento libre</strong>
-        <small>Agregás los ejercicios sobre la marcha</small>
-      </button>
-    </div>
+    <button class="btn free-btn" data-free>＋ Entrenamiento libre</button>
     ${recent.length ? `
       <h2 class="section-title">Últimos entrenamientos</h2>
       <div class="card list">
@@ -160,9 +183,13 @@ function weekLabel(routine) {
   return st.week !== st.now ? `Recupera semana ${st.week} · ` : `Semana ${st.week} de ${routine.progression.length} · `;
 }
 
-function lastDoneLabel(routineId) {
+// "hace 7 días (jue 9 oct)", o '' si nunca la hiciste.
+function lastDoneText(routineId) {
   const s = state.sessions.find((x) => x.routineId === routineId);
-  return s ? ` · última: ${fmtDate(s.date)}` : '';
+  if (!s) return '';
+  const n = Math.round((parseDate(today()) - parseDate(s.date)) / 86400000);
+  const ago = n === 0 ? 'hoy' : n === 1 ? 'ayer' : `hace ${n} días`;
+  return `${ago} (${fmtDate(s.date, true)})`;
 }
 
 function start(container, routine) {

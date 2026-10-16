@@ -9,13 +9,13 @@ import {
 import {
   exerciseHistory, loggedExerciseIds, records, fmtSets,
   weekStart, addDays, monthSummary, weekPlan, planWeeks, musclesWorked,
-  trainingDays, weekStreak, weeklyVolume, movingAverage,
+  trainingDays, weekStreak, weeklyVolume, movingAverage, e1rm,
 } from '../stats.js';
 
 // Lo elegido en pantalla se recuerda mientras la app está abierta.
 const ui = {
   tab: 'mes', monthOffset: 0, weekOffset: 0, exerciseId: null, recGroup: null,
-  range: 'todo', volume: 'sets',
+  range: 'todo', volume: 'sets', strAll: false, recAll: false,
 };
 let charts = [];
 let shown = null;    // contenedor de la pestaña, para redibujar si cambia el tema
@@ -313,7 +313,7 @@ function fmtSet(ex, s) {
 
 // Diferencia entre dos series: kg y reps, lo que haya cambiado ("▲ +2,5 kg y +2 reps", "▲ +2,5 kg · −1 rep").
 // Sube o baja según el peso; a igual peso, según las reps.
-function diffBadge(ex, a, b) {
+function diffParts(a, b) {
   const dw = (b.w || 0) - (a.w || 0);
   const dr = b.r - a.r;
   const sign = (v) => (v > 0 ? '+' : '−');
@@ -322,17 +322,80 @@ function diffBadge(ex, a, b) {
     dr ? `${sign(dr)}${Math.abs(dr)} ${Math.abs(dr) === 1 ? 'rep' : 'reps'}` : '',
   ].filter(Boolean);
   const dir = dw || dr;
-  const cls = dir > 0 ? 'up' : dir < 0 ? 'down' : '';
-  const text = dir ? `${dir > 0 ? '▲' : '▼'} ${parts.join(dw * dr < 0 ? ' · ' : ' y ')}` : '= igual';
-  return `<span class="pct ${cls}">${text}</span>`;
+  return { dw, dr, dir, cls: dir > 0 ? 'up' : dir < 0 ? 'down' : '', text: parts.join(dw * dr < 0 ? ' · ' : ' y ') };
+}
+
+function diffBadge(ex, a, b) {
+  const d = diffParts(a, b);
+  return `<span class="pct ${d.cls}">${d.dir ? `${d.dir > 0 ? '▲' : '▼'} ${d.text}` : '= igual'}</span>`;
+}
+
+// Serie con el peso o las reps resaltados si cambiaron respecto de `prev`, cada uno con el color de su cambio.
+function setHtml(ex, s, prev) {
+  const mark = (txt, now, before) => (now === before ? txt : `<b class="${now > before ? 'up' : 'down'}">${txt}</b>`);
+  if (WEIGHT_TYPES[ex.type]?.bodyweight && !s.w) return `${mark(s.r, s.r, prev.r)} reps`;
+  const w = `${fmtNum(s.w || 0, 2)}${ex.type === 'mancuerna' ? ' c/u' : ''}`;
+  return `${mark(w, s.w || 0, prev.w || 0)} × ${mark(s.r, s.r, prev.r)}`;
+}
+
+// Cuántos mejoraron, quedaron igual o bajaron, como etiquetas (solo las que tienen algo).
+function strengthSummary(m) {
+  return [[m.improved, 'up', '▲', 'mejoraron', 'mejoró'], [m.same, '', '=', 'igual', 'igual'], [m.worse, 'down', '▼', 'bajaron', 'bajó']]
+    .filter(([l]) => l.length)
+    .map(([l, cls, icon, many, one]) => `<span class="delta-pill ${cls}">${icon} ${l.length} ${l.length === 1 ? one : many}</span>`)
+    .join('');
+}
+
+// Cuánto cambió, en proporción: fuerza estimada (1RM) con peso, reps sin peso.
+// Así +20 kg en prensa no le gana a +2,5 kg en press militar solo por ser más kilos.
+function strengthGain(r) {
+  const v = (s) => (WEIGHT_TYPES[r.ex.type]?.bodyweight && !s.w ? s.r : e1rm(s.w, s.r));
+  const a = v(r.first);
+  return a ? (v(r.last) - a) / a : 0;
+}
+
+const STR_TOP = 3;
+
+// Los primeros STR_TOP de la lista y, al final, el botón para ver todos (o menos). flag: clave de ui.
+// Devuelve los elementos a mostrar con el HTML del botón como último elemento.
+function foldList(list, flag, noun) {
+  if (list.length <= STR_TOP + 1) return list;
+  return ui[flag]
+    ? [...list, `<button class="list-item more-btn" data-fold="${flag}">Ver menos</button>`]
+    : [...list.slice(0, STR_TOP), `<button class="list-item more-btn" data-fold="${flag}">Ver los ${list.length} ${noun}</button>`];
+}
+
+// Plegado: las mejoras más grandes y lo que bajó. Desplegado: todos (mejoras de mayor a menor, iguales, bajas).
+function strengthList(m) {
+  const byGain = (a, b) => strengthGain(b) - strengthGain(a);
+  const improved = [...m.improved].sort(byGain);
+  const worse = [...m.worse].sort(byGain);
+  const total = improved.length + m.same.length + worse.length;
+  const folded = Math.min(improved.length, STR_TOP) + Math.min(worse.length, STR_TOP);
+  // Si plegar esconde 1 o ninguno, no vale la pena el botón.
+  if (total - folded <= 1) return strengthRows([...improved, ...m.same, ...worse]);
+  if (ui.strAll) {
+    return `${strengthRows([...improved, ...m.same, ...worse])}
+      <button class="list-item more-btn" data-fold="strAll">Ver menos</button>`;
+  }
+  return `
+    ${improved.length ? `<h3 class="sub-title">Lo que más subió</h3>${strengthRows(improved.slice(0, STR_TOP))}` : ''}
+    ${worse.length ? `<h3 class="sub-title">Lo que más bajó</h3>${strengthRows(worse.slice(-STR_TOP).reverse())}` : ''}
+    <button class="list-item more-btn" data-fold="strAll">Ver los ${total} ejercicios</button>`;
 }
 
 function strengthRows(list) {
-  return list.map((r) => `
-    <div class="list-item prog-row">
-      <div class="prog-top"><span>${esc(r.ex.name)}</span>${diffBadge(r.ex, r.first, r.last)}</div>
-      <small class="muted">${fmtSet(r.ex, r.first)} (${fmtDate(r.firstDate)}) → ${fmtSet(r.ex, r.last)} (${fmtDate(r.lastDate)})</small>
-    </div>`).join('');
+  return list.map((r) => {
+    const d = diffParts(r.first, r.last);
+    return `
+    <div class="list-item str-row" title="${fmtDate(r.firstDate)} → ${fmtDate(r.lastDate)}">
+      <span class="str-main">
+        <span class="str-name">${esc(r.ex.name)}</span>
+        <span class="str-sets"><span class="muted">${fmtSet(r.ex, r.first)}</span> → <span class="str-now">${setHtml(r.ex, r.last, r.first)}</span></span>
+      </span>
+      <span class="delta-pill ${d.cls}">${d.dir ? d.text : 'igual'}</span>
+    </div>`;
+  }).join('');
 }
 
 // Mapa de constancia: una columna por semana (lunes arriba), un cuadrito por día con el tono según las series.
@@ -430,8 +493,8 @@ function renderMonth(body, container) {
 
     ${m.newRecords.length ? `
     <section class="card list">
-      <h2 class="card-title">🏆 Récords nuevos</h2>
-      ${m.newRecords.map((r) => `
+      <h2 class="card-title">🏆 Récords nuevos <small class="muted">· ${m.newRecords.length}</small></h2>
+      ${foldList(m.newRecords.sort((a, b) => b.date.localeCompare(a.date)), 'recAll', 'récords').map((r) => typeof r === 'string' ? r : `
         <div class="list-item prog-row">
           <div class="prog-top"><span>${esc(r.ex.name)}</span><strong>${fmtSet(r.ex, r.set)}</strong></div>
           <small class="muted">${fmtDate(r.date)} · antes: ${fmtSet(r.ex, r.prev)}</small>
@@ -447,13 +510,16 @@ function renderMonth(body, container) {
 
     <section class="card list">
       <h2 class="card-title">💪 Fuerza por ejercicio</h2>
-      ${compared.length ? strengthRows(compared) : '<p class="muted pad">Todavía no repetiste ningún ejercicio este mes.</p>'}
+      ${compared.length ? `<div class="str-summary">${strengthSummary(m)}</div>${strengthList(m)}` : '<p class="muted pad">Todavía no repetiste ningún ejercicio este mes.</p>'}
       <p class="note pad">Compara la serie más pesada de la primera y la última vez que hiciste cada ejercicio en el mes.${m.once.length ? ` ${m.once.length} ejercicio${m.once.length > 1 ? 's' : ''} hecho${m.once.length > 1 ? 's' : ''} una sola vez no se compara${m.once.length > 1 ? 'n' : ''}.` : ''}</p>
     </section>`}`;
 
   body.querySelector('[data-prev]').onclick = () => { ui.monthOffset++; render(container); };
   body.querySelector('[data-next]').onclick = () => { ui.monthOffset--; render(container); };
   bindHeatmap(body, heat.days);
+  body.querySelectorAll('[data-fold]').forEach((b) => {
+    b.onclick = () => { ui[b.dataset.fold] = !ui[b.dataset.fold]; render(container); };
+  });
 }
 
 // --- Semana -------------------------------------------------------------

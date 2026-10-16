@@ -220,6 +220,23 @@ label .input { margin-top: 4px; }
 .row-actions .btn { flex: 1; }
 
 /* ---------- Entrenar ---------- */
+/* Inicio de Entrenar: cómo va la semana, la rutina que toca y el resto. */
+.week-progress { display: flex; align-items: center; gap: 10px; margin: -6px 0 14px; color: var(--text-secondary); font-size: .9rem; }
+.week-dots { display: flex; gap: 4px; }
+.week-dots span { width: 10px; height: 10px; border-radius: 50%; background: var(--surface-2); border: 1px solid var(--border); }
+.week-dots span.on { background: var(--good); border-color: var(--good); }
+.next-card {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 18px; margin-bottom: 8px;
+  background: var(--fuerza-soft); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  border-radius: var(--radius);
+}
+.next-eyebrow { font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--accent); }
+.next-name { font-size: 1.6rem; line-height: 1.15; }
+.next-meta { font-size: .88rem; color: var(--text-secondary); }
+.next-start { margin-top: 12px; width: 100%; min-height: 50px; font-size: 1.05rem; }
+.routine-row-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.free-btn { width: 100%; margin: 4px 0 8px; background: transparent; border-style: dashed; color: var(--text-secondary); }
 .routine-buttons { display: grid; gap: 10px; }
 .routine-btn {
   display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
@@ -580,6 +597,24 @@ legend { font-size: .9rem; color: var(--text-secondary); margin-bottom: 6px; }
 .week-row > span:last-child, .week-row > small { text-align: right; }
 .sub-title { font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); margin: 12px 14px 0; }
 .prog-row { gap: 2px; }
+/* Fuerza por ejercicio: antes → ahora, con lo que cambió resaltado y el cambio en una etiqueta. */
+.str-summary { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 14px 10px; }
+.more-btn { align-items: center; color: var(--accent); font-weight: 600; font-size: .9rem; }
+.str-row { flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; cursor: default; }
+.str-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.str-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.str-sets { font-size: .85rem; font-variant-numeric: tabular-nums; color: var(--text-muted); }
+.str-now { color: var(--text-primary); }
+.str-now b { font-weight: 700; }
+.str-now b.up { color: var(--good); }
+.str-now b.down { color: var(--danger); }
+.delta-pill {
+  flex: none; white-space: nowrap; font-size: .78rem; font-weight: 600; font-variant-numeric: tabular-nums;
+  padding: 3px 9px; border-radius: 999px;
+  background: var(--surface-2); color: var(--text-secondary);
+}
+.delta-pill.up { background: color-mix(in srgb, var(--good) 15%, transparent); color: var(--good); }
+.delta-pill.down { background: color-mix(in srgb, var(--danger) 15%, transparent); color: var(--danger); }
 .prog-top { display: flex; justify-content: space-between; gap: 8px; width: 100%; }
 .pct { font-weight: 700; font-size: .85rem; color: var(--text-muted); white-space: nowrap; }
 .pct.up { color: var(--good); }
