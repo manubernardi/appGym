@@ -83,14 +83,14 @@ export function musclesWorked(from, to) {
 // --- Resumen del mes ----------------------------------------------------
 
 // Más peso, o el mismo peso con más reps (sin peso: más reps). Sirve para récords y para comparar dos veces.
-function beats(ex, a, b) {
+export function beats(ex, a, b) {
   if (WEIGHT_TYPES[ex.type]?.bodyweight) return a.r > b.r;
   const aw = a.w || 0;
   const bw = b.w || 0;
   return aw > bw || (aw === bw && a.r > b.r);
 }
 
-function topSet(ex, sets) {
+export function topSet(ex, sets) {
   let top = null;
   for (const s of sets) if (!top || beats(ex, s, top)) top = s;
   return top;

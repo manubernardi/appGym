@@ -11,6 +11,7 @@ import {
   weekStart, addDays, monthSummary, weekPlan, planWeeks, musclesWorked,
   trainingDays, weekStreak, weeklyVolume, movingAverage, e1rm,
 } from '../stats.js';
+import { fmtSet, diffParts, diffBadge, setHtml } from '../set-format.js';
 
 // Lo elegido en pantalla se recuerda mientras la app está abierta.
 const ui = {
@@ -304,38 +305,6 @@ const MONTHS_LONG = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Jul
 
 function oldestDate() {
   return state.sessions.length ? state.sessions[state.sessions.length - 1].date : today();
-}
-
-function fmtSet(ex, s) {
-  if (WEIGHT_TYPES[ex.type]?.bodyweight && !s.w) return `${s.r} reps`;
-  return `${fmtNum(s.w || 0, 2)}${ex.type === 'mancuerna' ? ' c/u' : ''} × ${s.r}`;
-}
-
-// Diferencia entre dos series: kg y reps, lo que haya cambiado ("▲ +2,5 kg y +2 reps", "▲ +2,5 kg · −1 rep").
-// Sube o baja según el peso; a igual peso, según las reps.
-function diffParts(a, b) {
-  const dw = (b.w || 0) - (a.w || 0);
-  const dr = b.r - a.r;
-  const sign = (v) => (v > 0 ? '+' : '−');
-  const parts = [
-    dw ? `${sign(dw)}${fmtNum(Math.abs(dw), 2)} kg` : '',
-    dr ? `${sign(dr)}${Math.abs(dr)} ${Math.abs(dr) === 1 ? 'rep' : 'reps'}` : '',
-  ].filter(Boolean);
-  const dir = dw || dr;
-  return { dw, dr, dir, cls: dir > 0 ? 'up' : dir < 0 ? 'down' : '', text: parts.join(dw * dr < 0 ? ' · ' : ' y ') };
-}
-
-function diffBadge(ex, a, b) {
-  const d = diffParts(a, b);
-  return `<span class="pct ${d.cls}">${d.dir ? `${d.dir > 0 ? '▲' : '▼'} ${d.text}` : '= igual'}</span>`;
-}
-
-// Serie con el peso o las reps resaltados si cambiaron respecto de `prev`, cada uno con el color de su cambio.
-function setHtml(ex, s, prev) {
-  const mark = (txt, now, before) => (now === before ? txt : `<b class="${now > before ? 'up' : 'down'}">${txt}</b>`);
-  if (WEIGHT_TYPES[ex.type]?.bodyweight && !s.w) return `${mark(s.r, s.r, prev.r)} reps`;
-  const w = `${fmtNum(s.w || 0, 2)}${ex.type === 'mancuerna' ? ' c/u' : ''}`;
-  return `${mark(w, s.w || 0, prev.w || 0)} × ${mark(s.r, s.r, prev.r)}`;
 }
 
 // Cuántos mejoraron, quedaron igual o bajaron, como etiquetas (solo las que tienen algo).

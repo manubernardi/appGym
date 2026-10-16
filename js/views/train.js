@@ -7,8 +7,10 @@
 import { WEIGHT_TYPES, CATEGORIES, exerciseCategory } from '../data.js';
 import { state } from '../store.js';
 import { save, remove } from '../db.js';
-import { esc, today, fmtDate, parseDate, parseNum, openModal, confirmDialog, toast, fmtClock, fmtDuration } from '../ui.js';
+import { esc, today, fmtDate, parseDate, parseNum, fmtNum, fmtKg, openModal, confirmDialog, toast, fmtClock, fmtDuration } from '../ui.js';
 import { lastTime, fmtSets, validSets, weekPlan, weekStart } from '../stats.js';
+import { suggestion, recordBefore, isRecord, sessionSummary } from '../coach.js';
+import { fmtSet, diffParts, setHtml } from '../set-format.js';
 import { openExercisePicker } from './exercises.js';
 import { FIXED, hasProgression, itemProg, currentWeek, weekStatus, itemTarget, categoryRuns, itemsLabel } from '../progression.js';
 
@@ -19,6 +21,8 @@ let pageSession = null; // sesión a la que corresponde `page` (al cambiar de se
 let clockTimer = null;
 const STALE_HOURS = 6; // un entrenamiento abierto más tiempo que esto se cierra solo
 const closed = new Set(); // ids ya cerrados (hasta que llegue la actualización de Firestore)
+let summary = null;        // entrenamiento recién terminado: se muestra su resumen hasta tocar "Listo"
+const celebrated = new Set(); // récords ya festejados ("sesión:ejercicio"), para avisar una sola vez
 
 // "3x10", "4 X 8-12" -> 3 / 4. Si no se entiende, null.
 export function parseSeries(target) {
@@ -67,6 +71,10 @@ export function render(container, arg) {
     return;
   }
   const active = activeSession();
+  if (summary && !active) {
+    renderSummary(container);
+    return;
+  }
   if (active) {
     if (editing?.session.id !== active.id) editing = { session: structuredClone(active), fromHistory: false };
     renderEditor(container);
@@ -91,6 +99,7 @@ export function leave() {
   flush();
   stopClock();
   editing = null;
+  summary = null;
 }
 
 // --- Cronómetro ----------------------------------------------------------
@@ -295,7 +304,7 @@ function renderEditor(container, opts = {}) {
       ${pages.map((p, k) => `
         <div class="pager-page" data-page="${k}">
           ${pageBanner(p)}
-          ${p.idx.map((i) => entryCard(s.entries[i], i, s.id)).join('')}
+          ${p.idx.map((i) => entryCard(s.entries[i], i, s.id, hist)).join('')}
         </div>`).join('')}
       <div class="pager-page" data-page="${pages.length}">
         ${s.entries.length ? `
@@ -420,6 +429,20 @@ function renderEditor(container, opts = {}) {
     scheduleSave();
     const k = pageOf(Number(i));
     steps[k].classList.toggle('done', pages[k].idx.every((x) => entryDone(s.entries[x])));
+    if (f !== 'rir') markRecord(container, s, Number(i), Number(j));
+  });
+  // Al confirmar el valor (salir del campo), si la serie es récord se festeja una vez por ejercicio.
+  pager.addEventListener('change', (e) => {
+    const inp = e.target.closest('[data-f]');
+    if (!inp || inp.dataset.f === 'rir') return;
+    const en = s.entries[inp.dataset.i];
+    const ex = state.exercises.get(en.exerciseId);
+    const st = en.sets[inp.dataset.j];
+    const key = `${s.id}:${en.exerciseId}`;
+    if (hist || celebrated.has(key) || !isRecord(ex, st, recordBefore(en.exerciseId, s.id))) return;
+    celebrated.add(key);
+    navigator.vibrate?.(120);
+    toast(`🏆 ¡Récord en ${ex.name}! ${fmtSet(ex, st)}`);
   });
   pager.addEventListener('click', (e) => {
     const btn = e.target.closest('button');
@@ -427,7 +450,14 @@ function renderEditor(container, opts = {}) {
     if (btn.dataset.go) { goTo(Number(btn.dataset.go)); return; }
     const card = btn.closest('.entry');
     const i = Number(card?.dataset.i);
-    if (btn.hasAttribute('data-add-set')) {
+    if (btn.hasAttribute('data-use')) {
+      const w = Number(btn.dataset.use);
+      s.entries[i].sets.forEach((st) => { if (st.w == null) st.w = w; });
+      scheduleSave();
+      renderEditor(container);
+    } else if (btn.hasAttribute('data-rir-help')) {
+      toast('RIR: cuántas reps más podías hacer (0 = ninguna, llegaste al límite). Es opcional y ajusta la sugerencia de peso.');
+    } else if (btn.hasAttribute('data-add-set')) {
       const sets = s.entries[i].sets;
       sets.push({ w: sets.length ? sets[sets.length - 1].w : null, r: null });
       scheduleSave();
@@ -444,16 +474,30 @@ function renderEditor(container, opts = {}) {
   });
 }
 
-function entryCard(en, i, sessionId) {
+// Reps en reserva: cuántas más podías hacer. Opcional; ajusta la sugerencia de peso de la próxima vez.
+const RIR_OPTIONS = [['', '–'], ['0', '0'], ['1', '1'], ['2', '2'], ['3', '3'], ['4', '4+']];
+const SUGGEST_DIR = { up: '▲ subí', keep: '= mantené', down: '▼ bajá' };
+
+function entryCard(en, i, sessionId, hist) {
   const ex = state.exercises.get(en.exerciseId);
   const type = WEIGHT_TYPES[ex?.type] || WEIGHT_TYPES.maquina;
   const last = lastTime(en.exerciseId, sessionId);
   const cat = entryCategory(en);
   const cardio = cat === 'cardio';
+  const strength = cat === 'fuerza';
+  const sug = !hist && strength && ex ? suggestion(ex, en.target, last) : null;
+  const rec = cardio || !ex ? null : recordBefore(en.exerciseId, sessionId);
+  // Con sugerencia, los placeholders muestran el peso y las reps sugeridos; si no, lo de la última vez.
+  const wPh = (j) => (sug ? (sug.w || (type.bodyweight ? '0' : '')) : last?.sets[j]?.w ?? (type.bodyweight ? '0' : ''));
+  const rPh = (j) => (sug ? sug.r : last?.sets[j]?.r ?? '');
   const wInput = (st, j) => `<input class="input num" data-i="${i}" data-j="${j}" data-f="w" inputmode="decimal"
-              value="${st.w ?? ''}" placeholder="${last?.sets[j]?.w ?? (type.bodyweight ? '0' : '')}" aria-label="${cardio ? 'Km' : 'Peso'} serie ${j + 1}">`;
+              value="${st.w ?? ''}" placeholder="${wPh(j)}" aria-label="${cardio ? 'Km' : 'Peso'} serie ${j + 1}">`;
   const rInput = (st, j) => `<input class="input num" data-i="${i}" data-j="${j}" data-f="r" inputmode="numeric"
-              value="${st.r ?? ''}" placeholder="${last?.sets[j]?.r ?? ''}" aria-label="${cardio ? 'Minutos' : 'Reps'} serie ${j + 1}">`;
+              value="${st.r ?? ''}" placeholder="${rPh(j)}" aria-label="${cardio ? 'Minutos' : 'Reps'} serie ${j + 1}">`;
+  const rirInput = (st, j) => `<select class="input rir" data-i="${i}" data-j="${j}" data-f="rir" aria-label="Reps en reserva serie ${j + 1}">
+              ${RIR_OPTIONS.map(([v, label]) => `<option value="${v}" ${String(st.rir ?? '') === v ? 'selected' : ''}>${label}</option>`).join('')}
+            </select>`;
+  const canUse = sug && sug.w > 0 && en.sets.some((st) => st.w == null);
   return `
     <section class="card entry cat-${cat}" data-i="${i}">
       <div class="entry-head">
@@ -465,21 +509,45 @@ function entryCard(en, i, sessionId) {
       </div>
       <p class="last">${last
         ? `<span class="muted">Última vez (${fmtDate(last.date)}):</span> ${esc(fmtSets(last.sets, ex))}`
-        : '<span class="muted">Primera vez que lo registrás</span>'}</p>
+        : '<span class="muted">Primera vez que lo registrás</span>'}
+        ${rec ? `<br><span class="muted">🏆 Récord: ${esc(fmtSet(ex, rec))}</span>` : ''}</p>
+      ${sug ? `
+        <div class="suggest ${sug.dir}">
+          <div class="suggest-text">
+            <span class="suggest-main"><span class="suggest-label">Hoy</span> <strong>${esc(fmtSet(ex, sug))}</strong> <span class="suggest-dir">${SUGGEST_DIR[sug.dir]}</span></span>
+            <small>${esc(sug.why)}</small>
+          </div>
+          ${canUse ? `<button class="btn btn-small" data-use="${sug.w}">Usar</button>` : ''}
+        </div>` : ''}
       <div class="sets">
-        <div class="set-row set-header">
+        <div class="set-row set-header ${strength ? 'with-rir' : ''}">
           ${cardio ? '<span>#</span><span>Min</span><span>Km</span><span></span>'
-            : `<span>#</span><span>${esc(type.short)}</span><span>Reps</span><span></span>`}
+            : `<span>#</span><span>${esc(type.short)}</span><span>Reps</span>${strength ? '<button class="rir-help" data-rir-help>RIR ⓘ</button>' : ''}<span></span>`}
         </div>
-        ${en.sets.map((st, j) => `
-          <div class="set-row">
-            <span class="set-num">${j + 1}</span>
+        ${en.sets.map((st, j) => {
+          const pr = isRecord(ex, st, rec);
+          return `
+          <div class="set-row ${strength ? 'with-rir' : ''} ${pr ? 'pr' : ''}" data-row="${i}-${j}">
+            <span class="set-num">${pr ? '🏆' : j + 1}</span>
             ${cardio ? rInput(st, j) + wInput(st, j) : wInput(st, j) + rInput(st, j)}
+            ${strength ? rirInput(st, j) : ''}
             <button class="icon-btn small" data-del-set data-j="${j}" aria-label="Borrar serie">✕</button>
-          </div>`).join('')}
+          </div>`;
+        }).join('')}
       </div>
       <button class="btn btn-small" data-add-set>+ Serie</button>
     </section>`;
+}
+
+// Marca (o desmarca) la serie como récord mientras la escribís.
+function markRecord(container, s, i, j) {
+  const en = s.entries[i];
+  const ex = state.exercises.get(en.exerciseId);
+  const row = container.querySelector(`[data-row="${i}-${j}"]`);
+  if (!ex || !row) return;
+  const pr = isRecord(ex, en.sets[j], recordBefore(en.exerciseId, s.id));
+  row.classList.toggle('pr', pr);
+  row.querySelector('.set-num').textContent = pr ? '🏆' : j + 1;
 }
 
 function entryMenu(container, i) {
@@ -516,7 +584,9 @@ function entryMenu(container, i) {
 
 // Saca series vacías y ejercicios sin series.
 function cleanup(s) {
-  s.entries.forEach((en) => { en.sets = validSets(en).map((x) => ({ w: x.w ?? null, r: x.r })); });
+  s.entries.forEach((en) => {
+    en.sets = validSets(en).map((x) => ({ w: x.w ?? null, r: x.r, ...(x.rir != null ? { rir: x.rir } : {}) }));
+  });
   s.entries = s.entries.filter((en) => en.sets.length);
 }
 
@@ -535,6 +605,90 @@ async function finish(container) {
   saveTimer = 1;
   flush();
   editing = null;
-  toast(`¡Entrenamiento guardado! 💪 Duró ${fmtDuration(s.duration)}.`);
-  renderHome(container);
+  summary = structuredClone(s);
+  renderSummary(container);
+  window.scrollTo(0, 0);
+}
+// --- Resumen al terminar -------------------------------------------------
+
+// "8 min menos que la vez anterior" (si hiciste la misma rutina antes y tiene duración).
+function durationCompare(s, prev) {
+  if (!s.duration || !prev?.duration) return 'de entrenamiento';
+  const d = s.duration - prev.duration;
+  if (Math.abs(d) < 120) return 'igual que la vez anterior';
+  return `${fmtDuration(Math.abs(d))} ${d < 0 ? 'menos' : 'más'} que la anterior`;
+}
+
+function renderSummary(container) {
+  const s = summary;
+  const sum = sessionSummary(s);
+  const better = sum.compared.filter((c) => c.dir > 0).length;
+  const worse = sum.compared.filter((c) => c.dir < 0).length;
+  const same = sum.compared.length - better - worse;
+  // Qué toca ahora. La rutina recién hecha cuenta como hecha aunque todavía no haya llegado a los datos.
+  const routines = state.routines.filter((r) => !r.archived);
+  const week = weekPlan(weekStart(today()));
+  const thisWeek = s.date >= weekStart(today());
+  const done = (r) => (thisWeek && r.id === s.routineId) || week.days.some((d) => d.routine.id === r.id && d.dates.length);
+  const next = routines.find((r) => !done(r));
+  const pill = (n, cls, icon, one, many) => (n ? `<span class="delta-pill ${cls}">${icon} ${n} ${n === 1 ? one : many}</span>` : '');
+
+  container.innerHTML = `
+    <div class="done-hero">
+      <span class="done-emoji" aria-hidden="true">${sum.records.length ? '🏆' : '💪'}</span>
+      <h1>¡Terminaste ${esc(s.routineName || 'el entrenamiento')}!</h1>
+      <p class="muted">${fmtDate(s.date, true)}${s.week ? ` · semana ${s.week}` : ''}</p>
+    </div>
+    <div class="stat-tiles">
+      ${s.duration ? `<div class="tile"><span class="tile-value">${fmtDuration(s.duration)}</span><span class="tile-label">${durationCompare(s, sum.prevRoutine)}</span></div>` : ''}
+      <div class="tile"><span class="tile-value">${sum.sets}</span><span class="tile-label">series · ${sum.exercises} ejercicios</span></div>
+      ${sum.kg ? `<div class="tile"><span class="tile-value">${fmtKg(sum.kg)}</span><span class="tile-label">levantados</span></div>` : ''}
+      ${sum.cardioMin ? `<div class="tile"><span class="tile-value">${fmtNum(sum.cardioMin, 0)} min</span><span class="tile-label">de cardio</span></div>` : ''}
+    </div>
+    ${sum.records.length ? `
+      <section class="card list rec-recent">
+        <h2 class="card-title">🏆 ${sum.records.length === 1 ? 'Récord nuevo' : `${sum.records.length} récords nuevos`}</h2>
+        ${sum.records.map((r) => `
+          <div class="list-item str-row">
+            <span class="str-main">
+              <span class="str-name">${esc(r.ex.name)}</span>
+              <span class="str-sets"><span class="muted">antes ${fmtSet(r.ex, r.prev)}</span> → <span class="str-now">${setHtml(r.ex, r.set, r.prev)}</span></span>
+            </span>
+            <span class="delta-pill up">${diffParts(r.prev, r.set).text}</span>
+          </div>`).join('')}
+      </section>` : ''}
+    ${sum.compared.length ? `
+      <section class="card list">
+        <h2 class="card-title">📈 Contra la última vez</h2>
+        <div class="str-summary">
+          ${pill(better, 'up', '▲', 'mejoró', 'mejoraron')}${pill(same, '', '=', 'igual', 'igual')}${pill(worse, 'down', '▼', 'bajó', 'bajaron')}
+        </div>
+        ${sum.compared.map((c) => {
+          const d = diffParts(c.from, c.to);
+          return `
+          <div class="list-item str-row">
+            <span class="str-main">
+              <span class="str-name">${esc(c.ex.name)}</span>
+              <span class="str-sets"><span class="muted">${fmtSet(c.ex, c.from)}</span> → <span class="str-now">${setHtml(c.ex, c.to, c.from)}</span></span>
+            </span>
+            <span class="delta-pill ${d.cls}">${d.dir ? d.text : 'igual'}</span>
+          </div>`;
+        }).join('')}
+        <p class="note pad">Compara la serie más pesada de hoy con la de la última vez que hiciste cada ejercicio.</p>
+      </section>` : ''}
+    ${routines.length ? `
+      <div class="up-next">
+        ${next
+          ? `<span class="muted">Próximo:</span> <strong>${esc(next.name)}</strong>`
+          : '<strong>¡Semana completa! 🎉</strong> <span class="muted">Hiciste todas las rutinas.</span>'}
+      </div>` : ''}
+    <button class="btn btn-primary btn-block btn-lg" data-ok>Listo</button>
+    <a class="btn btn-block summary-edit" href="#entrenar/${s.id}">Ver o corregir el entrenamiento</a>`;
+
+  container.querySelector('[data-ok]').onclick = () => {
+    summary = null;
+    renderHome(container);
+    window.scrollTo(0, 0);
+  };
+  container.querySelector('.summary-edit').addEventListener('click', () => { summary = null; });
 }

@@ -268,6 +268,41 @@ label .input { margin-top: 4px; }
 .set-header { font-size: .75rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 4px; }
 .set-header span:nth-child(2), .set-header span:nth-child(3) { text-align: center; }
 .set-num { text-align: center; color: var(--text-muted); font-weight: 600; }
+.set-row.with-rir { grid-template-columns: 28px 1fr 1fr 58px 36px; }
+.input.rir { min-height: 48px; padding: 4px 2px; text-align: center; text-align-last: center; font-size: 1rem; }
+.rir-help {
+  border: none; background: none; padding: 0; font: inherit; font-size: .75rem;
+  color: var(--text-muted); text-transform: uppercase; cursor: pointer; text-align: center;
+}
+/* Serie que supera el récord. */
+.set-row.pr .input.num { border-color: var(--good); box-shadow: 0 0 0 1px var(--good); }
+.set-row.pr .set-num { font-size: 1.1rem; }
+
+/* Sugerencia de peso para hoy. */
+.suggest {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; margin: 0 0 12px; border-radius: 10px;
+  background: var(--surface-2); border-left: 3px solid var(--text-muted);
+}
+.suggest.up { border-left-color: var(--good); }
+.suggest.down { border-left-color: var(--warning); }
+.suggest-text { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.suggest-main { font-size: 1rem; }
+.suggest-main strong { font-size: 1.1rem; font-variant-numeric: tabular-nums; }
+.suggest-label { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); }
+.suggest-dir { font-size: .8rem; font-weight: 700; color: var(--text-secondary); white-space: nowrap; }
+.suggest.up .suggest-dir { color: var(--good); }
+.suggest.down .suggest-dir { color: var(--warning); }
+.suggest small { color: var(--text-secondary); font-size: .8rem; }
+.suggest .btn { flex: none; }
+
+/* Resumen al terminar. */
+.done-hero { text-align: center; padding: 12px 0 8px; }
+.done-emoji { font-size: 3rem; line-height: 1; }
+.done-hero h1 { margin: 8px 0 4px; }
+.done-hero p { margin: 0 0 12px; }
+.up-next { text-align: center; margin: 16px 0 12px; font-size: 1rem; }
+.summary-edit { margin-top: 8px; }
 .input.num { text-align: center; font-size: 1.15rem; font-weight: 600; min-height: 48px; }
 
 .session-actions { margin-top: 24px; }
