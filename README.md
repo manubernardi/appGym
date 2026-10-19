@@ -3,6 +3,9 @@
 App web instalable (PWA) para registrar entrenamientos y ver la evolución por grupo muscular.
 Funciona sin internet en el gimnasio y sincroniza con Firebase cuando hay conexión. Todo gratis.
 
+Cómo decide la app lo que sugiere y compara (sugerencia de peso, récords, cumplimiento, estancados, balance muscular…): [CRITERIOS.md](CRITERIOS.md).
+Cambios de cada versión: [CHANGELOG.md](CHANGELOG.md).
+
 ## Puesta en marcha (una sola vez)
 
 ### 1. Crear el proyecto en Firebase

@@ -339,3 +339,102 @@ y 70 lecturas más cada vez que se abría la app. Ahora:
 - [`firestore.rules`](firestore.rules): acepta la marca de oculto y ids de hasta 60 letras (los del catálogo). **Hay que volver a publicar las reglas.**
 - Tests: [`tests/catalog.test.mjs`](tests/catalog.test.mjs) (unión del catálogo, usuarios nuevos y de antes, ids fijos) y en las reglas.
 - Caché `gimnasio-v18` en [`sw.js`](sw.js).
+
+## v19 — Gráficas de Progreso (2026-10-16)
+
+- **Ejercicios y Peso**:
+  - El eje de fechas es **proporcional al tiempo**: dos entrenamientos separados por 3 semanas quedan más lejos que dos separados por 2 días.
+  - **Número grande** arriba del gráfico con cuánto cambió en el período: 1RM estimado de la última vez (o reps, sin peso) y, en Peso, la media de 7 días.
+  - Selector **1M · 3M · 6M · 1A · Todo** (solo los rangos que recortan algo).
+  - Récords marcados con un rombo en la línea del peso máximo y "🏆 récord" en el historial.
+  - Tooltip con los colores de la app y degradé debajo de la línea cuando hay una sola serie.
+- **Peso corporal**: la línea principal es la **media de 7 días**; los registros diarios quedan como puntos.
+- **Mes → Constancia**: mapa de días entrenados (un cuadrito por día, más oscuro con más series) y racha de semanas seguidas.
+  Tocando un día se ve qué rutina hiciste y cuántas series.
+- **Semana → Volumen por semana**: barras de las últimas 12 semanas en series o en kg levantados. Tocando una barra se va a esa semana.
+- **Récords**: mini gráfico con la tendencia de las últimas 12 veces de cada ejercicio.
+- Los colores de Chart.js se configuran una vez por tema y los gráficos se redibujan al pasar de claro a oscuro. Animación corta solo al entrar a una pestaña.
+
+| Archivo | Cambio |
+|---|---|
+| [`js/stats.js`](js/stats.js) | `exerciseHistory` marca `pr`; nuevas `trainingDays`, `weekStreak`, `weeklyVolume` y `movingAverage`. |
+| [`js/views/progress.js`](js/views/progress.js) | `timeChart` (eje lineal de fechas), `withRange`, `heroHtml`, `sparkline`, `heatmap` y `volumeChart`; `makeChart` aplica los valores de Chart.js una vez por tema. |
+| [`css/styles.css`](css/styles.css) | `.hero`, `.spark`, `.heat-*`, `.chart-box.short`. |
+| [`tests/stats.test.mjs`](tests/stats.test.mjs) | Tests de los cálculos nuevos. |
+| [`sw.js`](sw.js) | Caché `gimnasio-v19`. |
+
+## v20 — Inicio de Entrenar y listas más cortas (2026-10-16)
+
+- **Entrenar**:
+  - Arriba, cómo vas en la semana (un punto por rutina y "Esta semana: 2 de 3").
+  - Tarjeta **"Te toca"** con la primera rutina del plan que falta esta semana y un botón grande *Empezar*.
+  - El resto de las rutinas en lista, con "✓ jue 15 oct" o "pendiente". *Entrenamiento libre* pasa a ser un botón secundario.
+- **Mes → Fuerza por ejercicio**:
+  - Resumen en etiquetas ("▲ 5 mejoraron · ▼ 2 bajaron") y filas antes → ahora con lo que cambió resaltado en su color.
+  - Plegado: las 3 que más subieron y las 3 que más bajaron, con **"Ver los N ejercicios"** para el resto.
+- **Mes → Récords nuevos**: los 3 más recientes y "Ver los N récords".
+
+| Archivo | Cambio |
+|---|---|
+| [`js/views/train.js`](js/views/train.js) | `renderHome` nuevo; `lastDoneText`. |
+| [`js/views/progress.js`](js/views/progress.js) | `strengthSummary`, `strengthList`, `foldList`, `setHtml`. |
+| [`css/styles.css`](css/styles.css) | `.next-card`, `.week-dots`, `.free-btn`, `.str-*`, `.delta-pill`, `.more-btn`. |
+| [`sw.js`](sw.js) | Caché `gimnasio-v20`. |
+
+## v21 — Ayuda al entrenar (2026-10-16)
+
+- **Sugerencia "Hoy"** en cada ejercicio de fuerza: peso y reps para hoy (▲ subí / = mantené / ▼ bajá) con el motivo,
+  según la última vez, el objetivo de la semana y el RIR. El botón **Usar** completa ese peso en las series vacías.
+  Los campos vacíos muestran lo sugerido.
+- **Récord a superar** debajo de "Última vez". La serie que lo supera se marca con 🏆 y, al terminar de escribirla, avisa una vez por ejercicio (con vibración).
+- **RIR** (reps en reserva) opcional por serie en los ejercicios de fuerza: – / 0 / 1 / 2 / 3 / 4+. Ajusta la sugerencia de la próxima vez.
+- **Resumen al terminar** en lugar de volver directo al inicio: duración contra la vez anterior de la rutina, series, kg levantados,
+  récords nuevos, cada ejercicio contra la última vez y qué rutina toca después.
+- Los criterios de la sugerencia están en [`CRITERIOS.md`](CRITERIOS.md).
+
+| Archivo | Cambio |
+|---|---|
+| [`js/coach.js`](js/coach.js) | **Nuevo.** `parseTarget`, `weightStep`, `suggestion`, `recordBefore`, `isRecord`, `sessionSummary`. |
+| [`js/set-format.js`](js/set-format.js) | **Nuevo.** `fmtSet`, `diffParts`, `diffBadge`, `setHtml` (salen de `progress.js` para usarlos también en el resumen). |
+| [`js/views/train.js`](js/views/train.js) | `entryCard` con sugerencia, récord y RIR; `markRecord`; `renderSummary`. `cleanup` conserva el RIR (`sets[].rir`). |
+| [`js/stats.js`](js/stats.js) | Se exportan `beats` y `topSet`. |
+| [`tests/coach.test.mjs`](tests/coach.test.mjs) | **Nuevo.** |
+| [`sw.js`](sw.js) | Caché `gimnasio-v21`; cachea `coach.js` y `set-format.js`. |
+
+Las reglas de Firestore no cambian: no validan el contenido de cada serie.
+
+## v22 — Arreglo: series de aproximación en la sugerencia (2026-10-16)
+
+- Con *45×10 · 50×9 · 50×9* y objetivo 3x8 sugería mantener 50 kg: la primera serie, más liviana, contaba como si hubieras bajado el peso.
+  Ahora las series más livianas **antes** de la primera con el peso más alto son de aproximación y no cuentan; las más livianas **después** sí
+  (bajaste porque no llegabas), y el motivo lo dice: "Con 60 kg hiciste 2 de 3 series".
+- Archivos: [`js/coach.js`](js/coach.js), [`tests/coach.test.mjs`](tests/coach.test.mjs), [`sw.js`](sw.js) (caché `gimnasio-v22`).
+
+## v24 — Pestaña Análisis (2026-10-16)
+
+La v23 no se publicó (la caché se subió dos veces antes de este push).
+
+- **Progreso → Análisis** (pestaña nueva, al lado de *Mes*):
+  - **📋 Reporte del plan**: fechas, días del plan hechos, récords nuevos, semanas sin entrenar y cómo cambió cada ejercicio de la primera a la última vez del plan.
+    Botón **"✨ Resumen y consejos con IA"**: Gemini escribe un párrafo sobre cómo te fue y 3 consejos para el próximo plan. Solo se genera al tocarlo y no se guarda.
+  - **🎯 Cumplimiento del objetivo**: % de series que llegaron a las reps del plan, qué ejercicios cuestan y cuáles quedan fáciles.
+  - **⏸️ Estancados**: ejercicios con 3 o más entrenamientos seguidos sin récord, con sugerencia de descarga o de cambio.
+  - **⚖️ Balance muscular**: series por semana de cada grupo contra la franja de 10 a 20; empuje, tirón y piernas.
+  - **💪 Fuerza relativa**: 1RM estimado ÷ peso corporal, con nivel en sentadilla, banca, peso muerto y press militar (referencias de hombres o de mujeres).
+- **Entrenar**: durante 3 semanas después de terminar el plan, aviso "🏁 Terminaste el plan" con enlace al reporte (`#progreso/analisis`).
+- **Subió / bajó por fuerza estimada (1RM)** con un margen de ±1,5% en *Mes → Fuerza por ejercicio*, en el reporte del plan y en el resumen al terminar:
+  menos peso con muchas más reps (42,5×7 → 40×11) cuenta como mejora y 60×10 → 62,5×8, como igual. Los récords no cambian.
+- Todos los umbrales están explicados en [`CRITERIOS.md`](CRITERIOS.md).
+
+| Archivo | Cambio |
+|---|---|
+| [`js/analysis.js`](js/analysis.js) | **Nuevo.** `planInfo`, `strengthChange`, `recordsBetween`, `targetCompliance`, `stalledExercises`, `muscleBalance`, `relativeStrength`. |
+| [`js/ai.js`](js/ai.js) | **Nuevo.** Gemini compartido (`generate`, lista `MODELS`); lo usan la foto del plan y el reporte. |
+| [`js/plan-import.js`](js/plan-import.js) | Usa `generate` de `ai.js`. |
+| [`js/stats.js`](js/stats.js) | `strengthScore` y `compareStrength`; `monthSummary` clasifica por 1RM estimado y devuelve `dir`. |
+| [`js/progression.js`](js/progression.js) | Se exporta `planStart`. |
+| [`js/views/progress.js`](js/views/progress.js) | `renderAnalysis` y sus tarjetas; `render(container, arg)` abre la pestaña de `#progreso/<pestaña>`. |
+| [`js/views/train.js`](js/views/train.js) | Aviso de plan terminado; el resumen colorea por fuerza estimada. |
+| [`tests/analysis.test.mjs`](tests/analysis.test.mjs) | **Nuevo.** También tests de `compareStrength`. |
+| [`sw.js`](sw.js) | Caché `gimnasio-v24`; cachea `ai.js` y `analysis.js`. |
+| [`README.md`](README.md) | La lista de modelos de Gemini ahora está en `js/ai.js`. |
