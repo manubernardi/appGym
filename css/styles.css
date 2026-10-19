@@ -278,6 +278,29 @@ label .input { margin-top: 4px; }
 .set-row.pr .input.num { border-color: var(--good); box-shadow: 0 0 0 1px var(--good); }
 .set-row.pr .set-num { font-size: 1.1rem; }
 
+/* Músculos que trabaja: desplegable con el mapa del cuerpo. */
+.howto-toggle {
+  border: none; background: none; padding: 4px 0; margin: 4px 0 2px; cursor: pointer;
+  font: inherit; font-size: .85rem; font-weight: 600; color: var(--accent);
+}
+.howto-info { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); align-items: center; gap: 12px; margin: 2px 0 12px; }
+.bodymap { display: block; width: 100%; height: auto; max-height: 240px; }
+.bodymap polygon { stroke: var(--surface-1); stroke-width: 6; }
+.bm-0 { fill: var(--muscle-0); }
+.bm-1 { fill: var(--muscle-1); }
+.bm-2 { fill: var(--muscle-2); }
+.howto-legend { display: flex; flex-direction: column; gap: 10px; font-size: .9rem; }
+.howto-legend p { display: flex; align-items: flex-start; gap: 8px; margin: 0; }
+.howto-legend small { display: block; font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); }
+.sw { flex: none; width: 12px; height: 12px; margin-top: 3px; border-radius: 3px; }
+.sw-2 { background: var(--muscle-2); }
+.sw-1 { background: var(--muscle-1); }
+:root { --muscle-0: #dcdad4; --muscle-1: #eea79f; --muscle-2: #d0433a; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --muscle-0: #3b3b38; --muscle-1: #8e4b45; --muscle-2: #e5544b; }
+}
+:root[data-theme="dark"] { --muscle-0: #3b3b38; --muscle-1: #8e4b45; --muscle-2: #e5544b; }
+
 /* Sugerencia de peso para hoy. */
 .suggest {
   display: flex; align-items: center; gap: 10px;

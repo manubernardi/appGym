@@ -438,3 +438,21 @@ La v23 no se publicó (la caché se subió dos veces antes de este push).
 | [`tests/analysis.test.mjs`](tests/analysis.test.mjs) | **Nuevo.** También tests de `compareStrength`. |
 | [`sw.js`](sw.js) | Caché `gimnasio-v24`; cachea `ai.js` y `analysis.js`. |
 | [`README.md`](README.md) | La lista de modelos de Gemini ahora está en `js/ai.js`. |
+
+## v25 — Músculos que trabaja cada ejercicio (2026-10-19)
+
+- **Entrenar**: debajo del nombre de cada ejercicio, un desplegable **"▸ Músculos que trabaja"** (cerrado por defecto) con
+  un **mapa del cuerpo** de frente y de espalda: el grupo principal en rojo fuerte y los secundarios en rojo claro, con sus nombres al lado.
+  Abierto o cerrado vale para todos los ejercicios y la app lo recuerda en el teléfono.
+- Sale de los grupos cargados en cada ejercicio (*Más → Mis ejercicios*), así que funciona con todos, también los propios. El cardio no tiene mapa.
+- Anda sin internet: el dibujo está en el código.
+- Dibujo del cuerpo de [react-body-highlighter](https://github.com/giavinh79/react-body-highlighter) (licencia MIT, con su aviso en el código).
+- Se probaron fotos de demostración de cada ejercicio y por ahora quedaron afuera.
+
+| Archivo | Cambio |
+|---|---|
+| [`js/bodymap.js`](js/bodymap.js) | **Nuevo.** Polígonos del cuerpo (frente y espalda), grupo muscular → zonas (`ZONES`), `bodyMapSvg` y `hasBodyMap`. |
+| [`js/views/train.js`](js/views/train.js) | `howtoPanel` y `musclesLegend` en la tarjeta de cada ejercicio. |
+| [`css/styles.css`](css/styles.css) | `.howto-*`, `.bodymap`, `.bm-0/1/2` y colores `--muscle-*` para claro y oscuro. |
+| [`sw.js`](sw.js) | Caché `gimnasio-v25`; cachea `bodymap.js`. |
+| [`tests/bodymap.test.mjs`](tests/bodymap.test.mjs) | **Nuevo.** |

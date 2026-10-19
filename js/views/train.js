@@ -11,6 +11,7 @@ import { esc, today, fmtDate, parseDate, parseNum, fmtNum, fmtKg, openModal, con
 import { lastTime, fmtSets, validSets, weekPlan, weekStart, addDays } from '../stats.js';
 import { suggestion, recordBefore, isRecord, sessionSummary } from '../coach.js';
 import { planInfo } from '../analysis.js';
+import { bodyMapSvg, hasBodyMap } from '../bodymap.js';
 import { fmtSet, diffParts, setHtml } from '../set-format.js';
 import { openExercisePicker } from './exercises.js';
 import { FIXED, hasProgression, itemProg, currentWeek, weekStatus, itemTarget, categoryRuns, itemsLabel } from '../progression.js';
@@ -459,7 +460,11 @@ function renderEditor(container, opts = {}) {
     if (btn.dataset.go) { goTo(Number(btn.dataset.go)); return; }
     const card = btn.closest('.entry');
     const i = Number(card?.dataset.i);
-    if (btn.hasAttribute('data-use')) {
+    if (btn.hasAttribute('data-howto')) {
+      howtoOpen = !howtoOpen;
+      try { localStorage.setItem('howtoOpen', howtoOpen ? '1' : '0'); } catch { /* dura mientras la app está abierta */ }
+      renderEditor(container);
+    } else if (btn.hasAttribute('data-use')) {
       const w = Number(btn.dataset.use);
       s.entries[i].sets.forEach((st) => { if (st.w == null) st.w = w; });
       scheduleSave();
@@ -516,6 +521,7 @@ function entryCard(en, i, sessionId, hist) {
         </div>
         <button class="icon-btn" data-menu aria-label="Opciones">⋯</button>
       </div>
+      ${howtoPanel(ex)}
       <p class="last">${last
         ? `<span class="muted">Última vez (${fmtDate(last.date)}):</span> ${esc(fmtSets(last.sets, ex))}`
         : '<span class="muted">Primera vez que lo registrás</span>'}
@@ -546,6 +552,27 @@ function entryCard(en, i, sessionId, hist) {
       </div>
       <button class="btn btn-small" data-add-set>+ Serie</button>
     </section>`;
+}
+
+// --- Músculos que trabaja: desplegable con el mapa del cuerpo ---
+
+// Abierto o cerrado en todos los ejercicios; empieza cerrado y se recuerda en el teléfono.
+let howtoOpen = (() => { try { return localStorage.getItem('howtoOpen') === '1'; } catch { return false; } })();
+
+// "Principal: Cuádriceps · Secundarios: Glúteos, Isquiotibiales", con el color de cada uno.
+function musclesLegend(ex) {
+  const sec = (ex.secondary || []).filter((g) => g !== ex.primary);
+  return `<div class="howto-legend">
+    <p><span class="sw sw-2"></span><span><small>Principal</small>${esc(ex.primary)}</span></p>
+    ${sec.length ? `<p><span class="sw sw-1"></span><span><small>Secundarios</small>${sec.map(esc).join(', ')}</span></p>` : ''}
+  </div>`;
+}
+
+function howtoPanel(ex) {
+  if (!hasBodyMap(ex)) return '';
+  return `
+    <button class="howto-toggle" data-howto aria-expanded="${howtoOpen}">${howtoOpen ? '▾' : '▸'} Músculos que trabaja</button>
+    ${howtoOpen ? `<div class="howto-info">${bodyMapSvg(ex)}${musclesLegend(ex)}</div>` : ''}`;
 }
 
 // Marca (o desmarca) la serie como récord mientras la escribís.

@@ -289,6 +289,29 @@ Qué parte de lo que pedía el plan llegaste a hacer.
 
 ## 6. Otros
 
+### Músculos que trabaja (mapa del cuerpo)
+
+En Entrenar, el desplegable **"Músculos que trabaja"** muestra el cuerpo de frente y de espalda, con el **grupo principal** del ejercicio
+en rojo fuerte y los **secundarios** en rojo claro. Sale de los grupos cargados en cada ejercicio (*Más → Mis ejercicios*), así que
+funciona para todos menos el cardio. Cada grupo pinta estas zonas:
+
+| Grupo | Zonas del dibujo |
+|---|---|
+| Pecho | pectorales |
+| Espalda | dorsales, trapecio y zona lumbar |
+| Hombros | deltoides anterior y posterior |
+| Bíceps / Tríceps | bíceps / tríceps |
+| Cuádriceps / Isquiotibiales | cuádriceps / isquiotibiales |
+| Glúteos | glúteos y abductores |
+| Gemelos | gemelos y sóleos |
+| Abdominales | recto abdominal y oblicuos |
+
+- Si un grupo es principal y secundario a la vez, se pinta como principal.
+- El desplegable empieza cerrado; abierto o cerrado vale para todos los ejercicios y se recuerda en el teléfono.
+- Código: `ZONES` y `bodyMapSvg` en [`js/bodymap.js`](js/bodymap.js).
+
+### Generales
+
 - **Entrenamiento olvidado abierto**: si quedó en curso más de **6 horas**, se cierra solo. Si tiene series se guarda como terminado; si está vacío, se borra.
   Código: `STALE_HOURS` en [`js/views/train.js`](js/views/train.js).
 - **Semanas del plan**: son de calendario (lunes a domingo). La semana 1 es la del primer entrenamiento del plan y cada lunes pasa a la siguiente,
