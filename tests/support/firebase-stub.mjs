@@ -18,7 +18,8 @@ export const writeBatch = () => ({ set: noop, commit: resolved });
 export {
   noop as initializeApp, noop as initializeAppCheck, Noop as ReCaptchaEnterpriseProvider,
   noop as getAuth, Noop as GoogleAuthProvider, resolved as signInWithPopup, resolved as signInWithRedirect,
-  noop as onAuthStateChanged, resolved as signOut,
+  noop as onAuthStateChanged, resolved as signOut, noop as connectAuthEmulator, resolved as signInWithEmailAndPassword,
+  noop as memoryLocalCache, noop as connectFirestoreEmulator,
   noop as initializeFirestore, noop as persistentLocalCache, noop as persistentMultipleTabManager,
   noop as collection, noop as onSnapshot,
   noop as getAI, noop as getGenerativeModel, Noop as GoogleAIBackend,

@@ -135,14 +135,16 @@ export const LEGS = ['Cuádriceps', 'Isquiotibiales', 'Glúteos', 'Gemelos'];
 export function muscleBalance(days = 28, to = today()) {
   const from = addDays(to, -(days - 1));
   const sets = Object.fromEntries(GROUPS.map((g) => [g, 0]));
+  // Desde cuándo entrenás: el primer entrenamiento de todos (no el primero del período, que puede caer
+  // unos días después del comienzo y achicaría la cuenta de semanas, inflando el promedio).
   let first = null;
+  for (const s of state.sessions) if (s.date <= to && (!first || s.date < first)) first = s.date;
   for (const s of state.sessions) {
     if (s.date < from || s.date > to) continue;
     for (const en of s.entries || []) {
       const ex = state.exercises.get(en.exerciseId);
       const n = validSets(en).length;
       if (isCardio(ex) || !n) continue;
-      if (!first || s.date < first) first = s.date;
       if (ex.primary in sets) sets[ex.primary] += n;
       for (const g of ex.secondary || []) if (g in sets && g !== ex.primary) sets[g] += n / 2;
     }

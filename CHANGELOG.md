@@ -456,3 +456,30 @@ La v23 no se publicó (la caché se subió dos veces antes de este push).
 | [`css/styles.css`](css/styles.css) | `.howto-*`, `.bodymap`, `.bm-0/1/2` y colores `--muscle-*` para claro y oscuro. |
 | [`sw.js`](sw.js) | Caché `gimnasio-v25`; cachea `bodymap.js`. |
 | [`tests/bodymap.test.mjs`](tests/bodymap.test.mjs) | **Nuevo.** |
+
+## v26 — Entorno de prueba local (2026-10-19)
+
+- **`npm run dev`**: levanta en la PC los emuladores de Firebase (login y base de datos), carga usuarios de prueba con historial
+  y sirve la app en `http://localhost:5050` (y en la red local, para el celular). No toca la app ni los datos reales:
+  usa el proyecto `demo-appgym`. Cómo usarlo, en el [README](README.md#entorno-de-prueba).
+- En el entorno de prueba la app muestra la franja **ENTORNO DE PRUEBA**, se entra eligiendo un usuario de prueba (o con `?como=<email>`),
+  no registra el service worker, no usa App Check y Gemini queda apagado.
+- Usuarios de prueba: plan en curso con 4 meses de historial, plan recién terminado y usuario nuevo. Las fechas son relativas a hoy.
+  Se cargan como cada usuario con las reglas de Firestore activas, así que también prueban las reglas.
+- **`npm run dev:parar`**: cierra lo que haya quedado abierto del entorno de prueba (si dice *port taken*).
+- **Arreglo — Balance muscular**: con historial largo, si no habías entrenado en los primeros días de las últimas 4 semanas,
+  el promedio se calculaba sobre menos semanas y salía inflado (y la nota decía "semanas desde que empezaste").
+  Ahora cuenta desde tu primer entrenamiento de todos. Lo encontraron los datos de prueba.
+
+| Archivo | Cambio |
+|---|---|
+| [`js/dev.js`](js/dev.js) | **Nuevo.** Detección del entorno de prueba (puerto 5050), puertos, proyecto `demo-appgym` y usuarios de prueba. |
+| [`js/db.js`](js/db.js) | En prueba: proyecto `demo-`, emuladores, caché en memoria, sin App Check; `devLogin`. |
+| [`js/app.js`](js/app.js) | Login con usuarios de prueba, franja, `?como=` y sin service worker en prueba. |
+| [`js/ai.js`](js/ai.js) | Gemini apagado en prueba. |
+| [`js/analysis.js`](js/analysis.js) | `muscleBalance` cuenta las semanas desde el primer entrenamiento de todos. |
+| [`scripts/dev.mjs`](scripts/dev.mjs), [`scripts/seed.mjs`](scripts/seed.mjs), [`scripts/seed-data.mjs`](scripts/seed-data.mjs), [`scripts/stop.mjs`](scripts/stop.mjs) | **Nuevos.** Servidor, carga de usuarios y datos, y cierre de procesos. |
+| [`firebase.json`](firebase.json), [`package.json`](package.json) | Emulador de login y consola de los emuladores; scripts `dev` y `dev:parar`. |
+| [`css/styles.css`](css/styles.css) | `.dev-ribbon`, `.dev-users`. |
+| [`tests/seed.test.mjs`](tests/seed.test.mjs) | **Nuevo.** Los datos de prueba siguen mostrando lo que se quiere probar. También un test del arreglo del balance. |
+| [`sw.js`](sw.js) | Caché `gimnasio-v26`; cachea `dev.js`. |

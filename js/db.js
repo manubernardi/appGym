@@ -6,31 +6,41 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/fireba
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app-check.js';
 import {
   getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect,
-  onAuthStateChanged, signOut,
+  onAuthStateChanged, signOut, connectAuthEmulator, signInWithEmailAndPassword,
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
 import {
-  initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
+  initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache, connectFirestoreEmulator,
   collection, doc, onSnapshot, setDoc, deleteDoc,
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 
 import { firebaseConfig, appCheckSiteKey } from './firebase-config.js';
+import { DEV, DEV_PROJECT, DEV_PORTS } from './dev.js';
 import { mergeExercises, isCatalogId } from './data.js';
 import { state, emit } from './store.js';
 import { toast } from './ui.js';
 
-export const app = initializeApp(firebaseConfig);
+// En el entorno de prueba (npm run dev) todo va a los emuladores de tu PC, con un proyecto "demo-":
+// Firebase garantiza que esos proyectos nunca tocan nada real.
+export const app = initializeApp(DEV
+  ? { apiKey: 'demo-key', authDomain: `${DEV_PROJECT}.firebaseapp.com`, projectId: DEV_PROJECT, appId: 'demo-app' }
+  : firebaseConfig);
 
 // App Check va antes que Firestore y Gemini para que todos sus pedidos lleven el comprobante.
 // En localhost usa un token de depuración: la consola del navegador lo muestra la primera vez
 // y hay que registrarlo en Firebase → App Check → Apps → Administrar tokens de depuración.
-if (appCheckSiteKey && typeof location !== 'undefined') {
+if (appCheckSiteKey && !DEV && typeof location !== 'undefined') {
   if (['localhost', '127.0.0.1'].includes(location.hostname)) self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
   initializeAppCheck(app, { provider: new ReCaptchaEnterpriseProvider(appCheckSiteKey), isTokenAutoRefreshEnabled: true });
 }
 const auth = getAuth(app);
+// En prueba, caché en memoria: los datos se cargan de nuevo en cada arranque y no quedan restos de una prueba anterior.
 const fs = initializeFirestore(app, {
-  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+  localCache: DEV ? memoryLocalCache() : persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
 });
+if (DEV) {
+  connectAuthEmulator(auth, `http://${location.hostname}:${DEV_PORTS.auth}`, { disableWarnings: true });
+  connectFirestoreEmulator(fs, location.hostname, DEV_PORTS.firestore);
+}
 
 const COLLECTIONS = ['exercises', 'routines', 'sessions', 'bodyweight'];
 let unsubscribers = [];
@@ -47,6 +57,15 @@ export async function login() {
     } else if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
       toast('No se pudo iniciar sesión: ' + err.message);
     }
+  }
+}
+
+// Entorno de prueba: entrar como uno de los usuarios de prueba (scripts/seed.mjs).
+export async function devLogin(email, password) {
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+  } catch (err) {
+    toast('No se pudo entrar: ' + err.message + ' ¿Está corriendo npm run dev?');
   }
 }
 

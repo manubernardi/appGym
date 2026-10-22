@@ -1,7 +1,9 @@
 // Punto de entrada: login, navegación por pestañas y re-dibujado al cambiar los datos.
 
 import { state, onChange, isLoaded } from './store.js';
-import { watchAuth, login } from './db.js';
+import { watchAuth, login, devLogin } from './db.js';
+import { DEV, DEV_USERS, DEV_PASSWORD } from './dev.js';
+import { esc } from './ui.js';
 import * as train from './views/train.js';
 import * as plan from './views/plan.js';
 import * as progress from './views/progress.js';
@@ -28,9 +30,19 @@ function render(force = false) {
         <div class="login-logo">🏋️</div>
         <h1>Mi Gimnasio</h1>
         <p class="muted">Registrá tus entrenamientos y mirá tu evolución.</p>
-        <button class="btn btn-primary btn-lg" id="login-btn">Entrar con Google</button>
+        ${DEV ? `
+          <p><strong>Entorno de prueba.</strong> Elegí un usuario:</p>
+          <div class="dev-users">
+            ${DEV_USERS.map((u) => `
+              <button class="list-item dev-user" data-dev-user="${esc(u.email)}">
+                <strong>${esc(u.name)}</strong><small class="muted">${esc(u.about)}</small>
+              </button>`).join('')}
+          </div>` : '<button class="btn btn-primary btn-lg" id="login-btn">Entrar con Google</button>'}
       </div>`;
-    document.getElementById('login-btn').onclick = login;
+    document.getElementById('login-btn')?.addEventListener('click', login);
+    viewEl.querySelectorAll('[data-dev-user]').forEach((b) => {
+      b.onclick = () => devLogin(b.dataset.devUser, DEV_PASSWORD);
+    });
     return;
   }
   navEl.hidden = false;
@@ -71,6 +83,16 @@ window.addEventListener('error', (e) => {
   console.error(e.error || e.message);
 });
 
-if ('serviceWorker' in navigator) {
+// En el entorno de prueba no se registra: guardaría el código y no verías los cambios al recargar.
+if ('serviceWorker' in navigator && !DEV) {
   navigator.serviceWorker.register('./sw.js').catch((err) => console.warn('SW', err));
+}
+
+// Franja fija para no confundir el entorno de prueba con la app real.
+// ?como=<email> entra directo con ese usuario de prueba (ej. http://localhost:5050/?como=manu@prueba.com).
+if (DEV) {
+  document.body.classList.add('dev-env');
+  document.body.insertAdjacentHTML('afterbegin', '<div class="dev-ribbon">ENTORNO DE PRUEBA · datos ficticios</div>');
+  const como = new URLSearchParams(location.search).get('como');
+  if (como) devLogin(como, DEV_PASSWORD);
 }

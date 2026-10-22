@@ -96,6 +96,19 @@ test('muscleBalance: secundarios como media serie, por semana', () => {
   assert.equal(b.pull, 0);
 });
 
+test('muscleBalance: con historial largo promedia sobre 4 semanas aunque no hayas entrenado el primer día del período', () => {
+  at('2026-10-28');
+  load(state, {
+    sessions: [
+      session('d1', '2026-08-01', [pb('', [60, 10])]), // hace meses: ya entrenabas
+      session('d1', '2026-10-20', [pb('', [60, 10], [60, 10], [60, 10], [60, 10])]), // 4 series en el período
+    ],
+  });
+  const b = muscleBalance(28);
+  assert.equal(b.weeks, 4);
+  assert.equal(b.groups.find((g) => g.group === 'Pecho').sets, 1); // 4 series / 4 semanas
+});
+
 test('relativeStrength: 1RM / peso corporal y nivel en los básicos', () => {
   at('2026-10-14');
   load(state, {

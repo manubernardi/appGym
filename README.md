@@ -59,7 +59,40 @@ Entrá con Google una vez (con internet). Después funciona también sin conexi�
 
 ## Probar en la PC
 Desde esta carpeta: `npx serve .` (o cualquier servidor estático) y abrí `http://localhost:3000`.
-`localhost` ya viene autorizado en Firebase.
+`localhost` ya viene autorizado en Firebase. Ojo: así usás **tus datos reales**. Para probar sin tocarlos, usá el entorno de prueba.
+
+## Entorno de prueba
+Una copia de Firebase corriendo en tu PC, con usuarios ficticios y datos de ejemplo. Lo que hagas ahí **no toca tu app ni tus datos reales**:
+usa un proyecto llamado `demo-appgym` (Firebase garantiza que los proyectos `demo-` nunca acceden a nada real).
+
+**Una sola vez:** instalá Java 21 (por ejemplo `winget install EclipseAdoptium.Temurin.21.JDK`) y, desde esta carpeta, `npm install`.
+
+**Cada vez:**
+
+```sh
+npm run dev
+```
+
+- Levanta los emuladores (login y base de datos), carga los usuarios de prueba y sirve la app en **http://localhost:5050**.
+- En la app aparece la franja **ENTORNO DE PRUEBA** y, en vez de "Entrar con Google", elegís un usuario (contraseña de todos: `prueba123`):
+
+  | Usuario | Para probar |
+  |---|---|
+  | `manu@prueba.com` | Plan de 4 semanas en la semana 3, 4 meses de historial, peso corporal, un ejercicio estancado y una semana sin entrenar |
+  | `terminado@prueba.com` | Un plan que terminó hace unos días: el aviso en Entrenar y el reporte del plan |
+  | `nuevo@prueba.com` | Sin datos, como alguien que recién instala la app |
+
+- Atajo: `http://localhost:5050/?como=manu@prueba.com` entra directo con ese usuario.
+- **En el celular**: la terminal muestra una dirección tipo `http://192.168.x.x:5050`. Abrila con el celular en la misma red Wi-Fi.
+  La primera vez Windows puede preguntar si deja pasar a Node y a Java por el firewall: aceptá para redes privadas.
+- **Ver o editar los datos**: http://localhost:4000 (consola de los emuladores).
+- Las fechas son relativas a hoy: el plan siempre está en curso cuando lo probás.
+- **Ctrl+C** corta todo. Los datos de prueba se borran y el próximo `npm run dev` los vuelve a cargar desde cero.
+- Si dice *port taken* (quedó algo abierto de una vez anterior): `npm run dev:parar` y de nuevo `npm run dev`.
+- No hay Gemini (el proyecto es falso): la foto del plan y el resumen con IA muestran un error.
+- No registra el service worker: cada recarga trae el código recién guardado.
+- Los usuarios están en [`js/dev.js`](js/dev.js) y sus datos se arman en [`scripts/seed-data.mjs`](scripts/seed-data.mjs).
+  Para agregar un usuario de prueba, sumalo a `DEV_USERS` con un `profile` y armá ese perfil en `seedData`.
 
 ## Cómo se usa
 - **Plan**: cargás las rutinas del mes (Día 1, Día 2…, siempre ordenadas por número) con cada ejercicio y su objetivo (`3x10`).
@@ -121,9 +154,12 @@ npm test
   ver [`tests/support/`](tests/support/)). Atrapa errores de sintaxis o de imports que dejarían la app trabada en "cargando",
   y revisa que [`sw.js`](sw.js) tenga en `APP_FILES` todos los archivos de `js/`.
 
+- [`tests/seed.test.mjs`](tests/seed.test.mjs): que los datos del entorno de prueba sigan mostrando lo que se quiere probar.
+
 - [`tests/rules/rules.test.mjs`](tests/rules/rules.test.mjs): las reglas de Firestore en el emulador (lo que la app guarda tiene que pasar;
   datos de otro usuario, colecciones inventadas o documentos gigantes no). Necesita Java y las dependencias de desarrollo:
   `npm install` una vez y después `npm run test:rules`. No corre en el hook porque tarda (levanta el emulador).
+  `npm run dev` también prueba las reglas de paso: los datos de prueba se cargan como cada usuario, con las reglas activas.
 
 Una vez por clon, activá el hook que corre los tests antes de cada `git push` y frena el push si cambiaste archivos de la app
 sin subir la versión de `CACHE`:

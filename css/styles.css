@@ -716,3 +716,12 @@ legend { font-size: .9rem; color: var(--text-secondary); margin-bottom: 6px; }
 .pct.up { color: var(--good); }
 .pct.down { color: var(--danger); }
 .pad { padding: 0 14px 10px; }
+
+/* ---------- Entorno de prueba (npm run dev) ---------- */
+.dev-ribbon {
+  position: sticky; top: 0; z-index: 60; padding: 4px 8px; text-align: center;
+  background: repeating-linear-gradient(45deg, #b45309, #b45309 10px, #92400e 10px, #92400e 20px);
+  color: #fff; font-size: .75rem; font-weight: 700; letter-spacing: .06em;
+}
+.dev-users { display: flex; flex-direction: column; gap: 8px; max-width: 420px; margin: 0 auto; text-align: left; }
+.dev-user { border: 1px solid var(--border); border-radius: 12px; background: var(--surface-1); }
